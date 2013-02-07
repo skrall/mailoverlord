@@ -11,9 +11,15 @@ import org.subethamail.smtp.server.SMTPServer;
 @Configuration
 public class ApplicationConfig {
 
+    @Bean
+    public DatabaseMessageHandlerFactory databaseMessageHandlerFactory() {
+        return new DatabaseMessageHandlerFactory();
+    }
+
     @Bean(initMethod = "start", destroyMethod = "stop")
     public SMTPServer smtpServer() {
-        SMTPServer server = new SMTPServer(new DatabaseMessageHandlerFactory());
+        SMTPServer server = new SMTPServer(databaseMessageHandlerFactory());
+        server.setDisableReceivedHeaders(true);
         server.setPort(2025);
         return server;
     }

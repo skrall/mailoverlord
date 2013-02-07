@@ -1,5 +1,6 @@
 package org.mailoverlord.server.message;
 
+import org.apache.commons.io.IOUtils;
 import org.mailoverlord.server.entities.Message;
 import org.mailoverlord.server.repositories.MessageRepository;
 import org.slf4j.Logger;
@@ -46,16 +47,17 @@ public class DatabaseMessageHandlerFactory implements MessageHandlerFactory {
 
         public void recipient(String recipient) throws RejectException {
             logger.debug("Recipient: {}", recipient);
-            //message.getTo().add(recipient);
+            message.appendTo(recipient);
         }
 
         public void data(InputStream data) throws RejectException, TooMuchDataException, IOException {
             logger.debug("Got Data....");
-            // TODO - Use commons-io to copy input stream into byte array.
+            byte[] dataArray = IOUtils.toByteArray(data);
+            message.setData(dataArray);
         }
 
         public void done() {
-            //messageRepository.save(message);
+            messageRepository.save(message);
             logger.debug("Done.");
         }
     }

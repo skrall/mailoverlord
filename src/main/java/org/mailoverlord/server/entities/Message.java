@@ -1,19 +1,31 @@
 package org.mailoverlord.server.entities;
 
+import javax.persistence.Basic;
+import javax.persistence.Column;
+import javax.persistence.Entity;
+import javax.persistence.GeneratedValue;
+import javax.persistence.Id;
+import javax.persistence.Lob;
+import javax.persistence.PrePersist;
+import javax.persistence.Temporal;
+import javax.persistence.TemporalType;
 import java.util.Date;
-import java.util.List;
 
 /**
  * Message entity.
  */
+@Entity
 public class Message {
 
     private Long id;
     private String from;
-    private List<String> to;
+    private String to = "";
     private byte[] data;
     private Date receivedTimestamp;
 
+    @Id
+    @GeneratedValue
+    @Column(name = "MESSAGE_ID")
     public Long getId() {
         return id;
     }
@@ -22,6 +34,7 @@ public class Message {
         this.id = id;
     }
 
+    @Column(name = "FROM_ADDRESS")
     public String getFrom() {
         return from;
     }
@@ -30,14 +43,24 @@ public class Message {
         this.from = from;
     }
 
-    public List<String> getTo() {
+    @Column(name = "TO")
+    public String getTo() {
         return to;
     }
 
-    public void setTo(List<String> to) {
+    public void setTo(String to) {
         this.to = to;
     }
 
+    public void appendTo(String to) {
+        if(this.to != null && this.to.length() > 0) {
+            this.to += ",";
+        }
+        this.to += to;
+    }
+
+    @Column(name = "DATA")
+    @Lob
     public byte[] getData() {
         return data;
     }
@@ -46,11 +69,18 @@ public class Message {
         this.data = data;
     }
 
+    @Column(name = "RECEIVED_TIMESTAMP")
+    @Temporal(TemporalType.TIMESTAMP)
     public Date getReceivedTimestamp() {
         return receivedTimestamp;
     }
 
     public void setReceivedTimestamp(Date receivedTimestamp) {
         this.receivedTimestamp = receivedTimestamp;
+    }
+
+    @PrePersist
+    private void prePersist() {
+        this.receivedTimestamp = new Date();
     }
 }
