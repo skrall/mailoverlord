@@ -31,6 +31,11 @@ public class DatabaseMessageHandlerFactoryTest {
 
     private static final Logger logger = LoggerFactory.getLogger(DatabaseMessageHandlerFactoryTest.class);
 
+    private static final String MESSAGE_TEXT = "Hi";
+    private static final String FROM = "from@test.com";
+    private static final String TO1 = "to@from.com";
+    private static final String TO2 = "to2@from.com";
+
     @Autowired
     SMTPServer server;
 
@@ -39,24 +44,26 @@ public class DatabaseMessageHandlerFactoryTest {
 
     @Test
     public void testSimpleMessage() {
-        String message = "Hi";
+
+
         try {
             SmartClient client = new SmartClient("localhost", 2025, "test.com");
-            client.from("from@test.com");
-            client.to("to@from.com");
-            client.to("to2@from.com");
+            client.from(FROM);
+            client.to(TO1);
+            client.to(TO2);
             client.dataStart();
-            client.dataWrite(message.getBytes(), message.getBytes().length);
+            client.dataWrite(MESSAGE_TEXT.getBytes(), MESSAGE_TEXT.getBytes().length);
             client.dataEnd();
             client.quit();
             Iterable<Message> messages =  messageRepository.findAll();
             assertTrue("Message not found in database.", messages.iterator().hasNext());
             Message databaseMessage = messages.iterator().next();
-            assertEquals("to@from.com,to2@from.com", databaseMessage.getTo());
-            assertEquals("from@test.com", databaseMessage.getFrom());
+            String expectedTo = String.format("%s,%s", TO1, TO2);
+            assertEquals(expectedTo, databaseMessage.getTo());
+            assertEquals(FROM, databaseMessage.getFrom());
             String databaseString = new String(databaseMessage.getData());
             logger.info("Message Body: {}", databaseString);
-            assertEquals("Hi", databaseString.trim());
+            assertEquals(MESSAGE_TEXT, databaseString.trim());
         } catch (IOException e) {
             logger.error("Error while trying to send simple message.", e);
             throw new RuntimeException("Error while trying to send simple message", e);
