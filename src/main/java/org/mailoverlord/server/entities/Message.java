@@ -42,7 +42,8 @@ public class Message {
         this.from = from;
     }
 
-    @Column(name = "TO")
+    @Column(name = "TO_ADDRESSES")
+    @Lob
     public String getTo() {
         return to;
     }

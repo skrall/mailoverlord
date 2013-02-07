@@ -23,7 +23,7 @@ public class JndiDataSourceConfig {
         DataSource ds = null;
         try {
             InitialContext ic = new InitialContext();
-            ds = (DataSource)ic.lookup("java:/comp/env/jdbc/overlord-datasource");
+            ds = (DataSource)ic.lookup("java:comp/env/jdbc/overlord-datasource");
         } catch(Exception e) {
             logger.error("Error while looking up datasource.", e);
         }

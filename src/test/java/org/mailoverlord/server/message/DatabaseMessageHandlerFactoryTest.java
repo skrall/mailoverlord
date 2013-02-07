@@ -45,7 +45,6 @@ public class DatabaseMessageHandlerFactoryTest {
     @Test
     public void testSimpleMessage() {
 
-
         try {
             SmartClient client = new SmartClient("localhost", 2025, "test.com");
             client.from(FROM);
@@ -69,6 +68,5 @@ public class DatabaseMessageHandlerFactoryTest {
             throw new RuntimeException("Error while trying to send simple message", e);
         }
     }
-
 
 }

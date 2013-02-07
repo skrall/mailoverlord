@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<!DOCTYPE Configure PUBLIC "-//Mort Bay Consulting//DTD Configure//EN" "http://jetty.mortbay.org/configure.dtd">
+<Configure class="org.eclipse.jetty.webapp.WebAppContext">
+    <New id="overloard-datasource" class="org.eclipse.jetty.plus.jndi.Resource">
+        <Arg>jdbc/overlord-datasource</Arg>
+        <Arg>
+            <New class="org.apache.commons.dbcp.BasicDataSource">
+                <Set name="driverClassName">org.postgresql.Driver</Set>
+                <Set name="url">jdbc:postgresql://localhost:5432/overlord</Set>
+                <Set name="username">skrall</Set>
+                <Set name="password">password</Set>
+            </New>
+        </Arg>
+    </New>
+</Configure>
