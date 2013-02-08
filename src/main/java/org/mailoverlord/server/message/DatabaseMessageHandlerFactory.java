@@ -25,8 +25,6 @@ public class DatabaseMessageHandlerFactory implements MessageHandlerFactory {
     @Autowired
     private MessageRepository messageRepository;
 
-    private Message message = new Message();
-
     public MessageHandler create(MessageContext ctx) {
         logger.debug("Creating DatabaseMessageHandler.");
         return new DatabaseMessageHandler(ctx);
@@ -35,6 +33,7 @@ public class DatabaseMessageHandlerFactory implements MessageHandlerFactory {
     public class DatabaseMessageHandler implements MessageHandler {
 
         private MessageContext ctx;
+        private Message message = new Message();
 
         public DatabaseMessageHandler(MessageContext ctx) {
             this.ctx = ctx;

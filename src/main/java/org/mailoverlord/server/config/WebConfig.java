@@ -1,6 +1,7 @@
 package org.mailoverlord.server.config;
 
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.StandardEnvironment;
@@ -22,6 +23,7 @@ import javax.servlet.ServletRegistration;
  */
 @Configuration
 @EnableWebMvc
+@ComponentScan(basePackages = "org.mailoverlord.server.controllers")
 public class WebConfig extends WebMvcConfigurerAdapter implements WebApplicationInitializer {
 
     @Override
@@ -44,7 +46,6 @@ public class WebConfig extends WebMvcConfigurerAdapter implements WebApplication
         environment.setActiveProfiles("production");
         mvcContext.setEnvironment(environment);
         mvcContext.register(WebConfig.class,  JpaConfig.class, JndiDataSourceConfig.class, ApplicationConfig.class);
-        //mvcContext.register(WebConfig.class);
 
         ServletRegistration.Dynamic dispatcher = servletContext.addServlet(
                 "dispatcher", new DispatcherServlet(mvcContext));
