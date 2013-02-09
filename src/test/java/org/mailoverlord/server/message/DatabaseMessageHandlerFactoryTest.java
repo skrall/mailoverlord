@@ -26,7 +26,6 @@ import static org.junit.Assert.assertTrue;
  */
 @RunWith(SpringJUnit4ClassRunner.class)
 @ContextConfiguration(classes={JpaConfig.class, EmbeddedDataSourceConfig.class, ApplicationConfig.class})
-//@ContextConfiguration(classes={ApplicationConfig.class})
 public class DatabaseMessageHandlerFactoryTest {
 
     private static final Logger logger = LoggerFactory.getLogger(DatabaseMessageHandlerFactoryTest.class);
