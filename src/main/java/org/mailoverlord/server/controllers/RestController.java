@@ -17,14 +17,14 @@ import java.util.List;
  * Table Controller
  */
 @Controller
-public class TableController {
+public class RestController {
 
-    private static final Logger logger = LoggerFactory.getLogger(TableController.class);
+    private static final Logger logger = LoggerFactory.getLogger(RestController.class);
 
     @Autowired
     private MessageRepository messageRepository;
 
-    @RequestMapping(value = "/table/", produces = {"application/xml", "application/json"})
+    @RequestMapping(value = "/messages", produces = {"application/xml", "application/json"})
     public @ResponseBody List<Message> getTableData(Pageable pageable) {
         Page<Message> page = messageRepository.findAll(pageable);
         return page.getContent();

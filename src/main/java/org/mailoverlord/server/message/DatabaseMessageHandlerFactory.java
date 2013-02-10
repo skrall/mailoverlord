@@ -52,6 +52,7 @@ public class DatabaseMessageHandlerFactory implements MessageHandlerFactory {
         public void data(InputStream data) throws RejectException, TooMuchDataException, IOException {
             logger.debug("Got Data....");
             byte[] dataArray = IOUtils.toByteArray(data);
+            logger.debug("Data: {}", new String(dataArray));
             message.setData(dataArray);
         }
 

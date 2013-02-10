@@ -17,8 +17,4 @@ public class MessageJspData {
     public Page<Message> getPage() {
         return page;
     }
-
-    public void setPage(Page<Message> page) {
-        this.page = page;
-    }
 }

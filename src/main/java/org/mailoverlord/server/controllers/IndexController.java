@@ -25,7 +25,7 @@ public class IndexController {
 
     @RequestMapping("/")
     public String index(Pageable pageable, Model model) {
-        logger.debug("PageAble: {}, {}", pageable.getPageNumber(), pageable.getPageSize());
+        logger.debug("PageAble: page number {}, page size {}", pageable.getPageNumber(), pageable.getPageSize());
         Page<Message> page = messageRepository.findAll(pageable);
         model.addAttribute(new MessageJspData(page));
         return "index";

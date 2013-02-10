@@ -10,15 +10,22 @@ import org.mailoverlord.server.repositories.MessageRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.subethamail.smtp.client.SmartClient;
 import org.subethamail.smtp.server.SMTPServer;
 
+import javax.mail.BodyPart;
+import javax.mail.MessagingException;
+import javax.mail.Multipart;
+import javax.mail.internet.InternetAddress;
+import javax.mail.internet.MimeBodyPart;
+import javax.mail.internet.MimeMessage;
+import javax.mail.internet.MimeMultipart;
 import java.io.IOException;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -34,6 +41,9 @@ public class DatabaseMessageHandlerFactoryTest {
     private static final String FROM = "from@test.com";
     private static final String TO1 = "to@from.com";
     private static final String TO2 = "to2@from.com";
+    private static final String TO3 = "to3@from.com";
+    private static final String HOST = "localhost";
+    private static final int PORT = 2025;
 
     @Autowired
     SMTPServer server;
@@ -45,7 +55,7 @@ public class DatabaseMessageHandlerFactoryTest {
     public void testSimpleMessage() {
 
         try {
-            SmartClient client = new SmartClient("localhost", 2025, "test.com");
+            SmartClient client = new SmartClient(HOST, PORT, "test.com");
             client.from(FROM);
             client.to(TO1);
             client.to(TO2);
@@ -66,6 +76,36 @@ public class DatabaseMessageHandlerFactoryTest {
             logger.error("Error while trying to send simple message.", e);
             throw new RuntimeException("Error while trying to send simple message", e);
         }
+    }
+
+    @Test
+    public void testMimeMessage() throws MessagingException {
+        JavaMailSenderImpl javaMailSender = new JavaMailSenderImpl();
+        javaMailSender.setPort(PORT);
+        javaMailSender.setHost(HOST);
+
+        MimeMessage mimeMessage = new MimeMessage(javaMailSender.getSession());
+        mimeMessage.setFrom(new InternetAddress(FROM));
+        mimeMessage.addRecipients(javax.mail.Message.RecipientType.TO, TO1);
+        mimeMessage.addRecipients(javax.mail.Message.RecipientType.CC, TO2);
+        mimeMessage.addRecipients(javax.mail.Message.RecipientType.BCC, TO3);
+
+        mimeMessage.setSubject("This is a test message");
+
+        Multipart multipart = new MimeMultipart();
+
+        BodyPart textPart = new MimeBodyPart();
+        textPart.setText("This is the text message body...");
+
+        BodyPart htmlPart = new MimeBodyPart();
+        htmlPart.setContent("<HTML><BODY><H4>Large Html</H4></BODY></HTML>", "text/html");
+
+        multipart.addBodyPart(textPart);
+        multipart.addBodyPart(htmlPart);
+
+        mimeMessage.setContent(multipart);
+
+        javaMailSender.send(mimeMessage);
     }
 
 }

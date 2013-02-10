@@ -6,7 +6,9 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.repository.support.DomainClassConverter;
 import org.springframework.data.web.PageableArgumentResolver;
+import org.springframework.format.support.FormattingConversionService;
 import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.web.WebApplicationInitializer;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
@@ -38,14 +40,6 @@ public class WebConfig extends WebMvcConfigurerAdapter implements WebApplication
         registry.addResourceHandler("/resources/**").addResourceLocations("/resources/**");
     }
 
-    @Bean
-    public InternalResourceViewResolver configureInternalResourceViewResolver() {
-        InternalResourceViewResolver resolver = new InternalResourceViewResolver();
-        resolver.setPrefix("/WEB-INF/views/");
-        resolver.setSuffix(".jsp");
-        return resolver;
-    }
-
     @Override
     public void addArgumentResolvers(List<HandlerMethodArgumentResolver> argumentResolvers) {
         PageableArgumentResolver resolver = new PageableArgumentResolver();
@@ -60,11 +54,21 @@ public class WebConfig extends WebMvcConfigurerAdapter implements WebApplication
         StandardEnvironment environment = new StandardEnvironment();
         environment.setActiveProfiles("production");
         mvcContext.setEnvironment(environment);
-        mvcContext.register(WebConfig.class,  JpaConfig.class, JndiDataSourceConfig.class, ApplicationConfig.class);
+        mvcContext.register(WebConfig.class,  WebMvcConfig.class, JpaConfig.class, JndiDataSourceConfig.class,
+                            ApplicationConfig.class);
 
         ServletRegistration.Dynamic dispatcher = servletContext.addServlet(
                 "dispatcher", new DispatcherServlet(mvcContext));
         dispatcher.setLoadOnStartup(1);
         dispatcher.addMapping("/");
     }
+
+    @Bean
+    public InternalResourceViewResolver configureInternalResourceViewResolver() {
+        InternalResourceViewResolver resolver = new InternalResourceViewResolver();
+        resolver.setPrefix("/WEB-INF/views/");
+        resolver.setSuffix(".jsp");
+        return resolver;
+    }
+
 }
