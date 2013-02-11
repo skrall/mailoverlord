@@ -1,5 +1,6 @@
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <jsp:useBean id="messageJspData" class="org.mailoverlord.server.model.MessageJspData" scope="request"/>
+<jsp:useBean id="pagination" class="org.mailoverlord.server.model.Pagination" scope="request"/>
 <!DOCTYPE html>
 <!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
 <!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8"> <![endif]-->
@@ -74,13 +75,33 @@
         </table>
         <div class="pagination pagination-right">
             <ul>
-                <li><a href="#">Prev</a></li>
-                <li><a href="#">1</a></li>
-                <li><a href="#">2</a></li>
-                <li><a href="#">3</a></li>
-                <li><a href="#">4</a></li>
-                <li><a href="#">5</a></li>
-                <li><a href="#">Next</a></li>
+                <c:choose>
+                    <c:when test="${pagination.displayPreviousPageLink}">
+                        <li><a href="<c:url value='/?page.page=${pagination.previousPageLinkNumber}'/>">Prev</a></li>
+                    </c:when>
+                    <c:otherwise>
+                        <li class="disabled"><a href="#">Prev</a></li>
+                    </c:otherwise>
+                </c:choose>
+                <c:forEach begin="${pagination.startPageNumber}" end="${pagination.endPageNumber}" step="1"
+                           var="index">
+                    <c:choose>
+                        <c:when test="${pagination.currentPageNumber == index}">
+                            <li class="disabled"><a href="#">${index}</a></li>
+                        </c:when>
+                        <c:otherwise>
+                            <li><a href="<c:url value='/?page.page=${index}'/>">${index}</a></li>
+                        </c:otherwise>
+                    </c:choose>
+                </c:forEach>
+                <c:choose>
+                    <c:when test="${pagination.displayNextPageLink}">
+                        <li><a href="<c:url value='/?page.page=${pagination.nextPageLinkNumber}'/>">Next</a></li>
+                    </c:when>
+                    <c:otherwise>
+                        <li class="disabled"><a href="#">Next</a></li>
+                    </c:otherwise>
+                </c:choose>
             </ul>
         </div>
     </div>

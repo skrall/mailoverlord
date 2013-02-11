@@ -2,6 +2,7 @@ package org.mailoverlord.server.controllers;
 
 import org.mailoverlord.server.model.MessageJspData;
 import org.mailoverlord.server.entities.Message;
+import org.mailoverlord.server.model.Pagination;
 import org.mailoverlord.server.repositories.MessageRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,6 +28,7 @@ public class IndexController {
     public String index(Pageable pageable, Model model) {
         logger.debug("PageAble: page number {}, page size {}", pageable.getPageNumber(), pageable.getPageSize());
         Page<Message> page = messageRepository.findAll(pageable);
+        model.addAttribute(new Pagination(page));
         model.addAttribute(new MessageJspData(page));
         return "index";
     }

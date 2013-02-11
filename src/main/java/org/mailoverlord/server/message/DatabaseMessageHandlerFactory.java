@@ -49,7 +49,7 @@ public class DatabaseMessageHandlerFactory implements MessageHandlerFactory {
             message.appendTo(recipient);
         }
 
-        public void data(InputStream data) throws RejectException, TooMuchDataException, IOException {
+        public void data(InputStream data) throws RejectException, IOException {
             logger.debug("Got Data....");
             byte[] dataArray = IOUtils.toByteArray(data);
             logger.debug("Data: {}", new String(dataArray));
