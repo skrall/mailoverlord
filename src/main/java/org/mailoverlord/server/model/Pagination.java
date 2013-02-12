@@ -23,6 +23,8 @@ public class Pagination {
 
     private int nextPageLinkNumber;
 
+    private int totalPages;
+
     public Pagination(Page<?> page) {
         this.page = page;
         init();
@@ -32,6 +34,7 @@ public class Pagination {
         isFirstPage = page.isFirstPage();
         isLastPage = page.isLastPage();
         currentPageNumber = page.getNumber() + 1;
+        totalPages = page.getTotalPages();
 
         if (currentPageNumber <= 3) {
             previousPageLinkNumber = 1;
@@ -88,5 +91,9 @@ public class Pagination {
 
     public boolean isDisplayNextPageLink() {
         return !(nextPageLinkNumber == endPageNumber);
+    }
+
+    public int getTotalPages() {
+        return totalPages;
     }
 }

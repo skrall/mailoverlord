@@ -3,19 +3,13 @@ package org.mailoverlord.server.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.core.env.Environment;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.data.repository.support.DomainClassConverter;
 import org.springframework.data.web.PageableArgumentResolver;
-import org.springframework.format.support.FormattingConversionService;
-import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.web.WebApplicationInitializer;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
-import org.springframework.web.context.support.StandardServletEnvironment;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.servlet.DispatcherServlet;
-import org.springframework.web.servlet.config.annotation.DefaultServletHandlerConfigurer;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
@@ -32,7 +26,7 @@ import java.util.List;
  */
 @Configuration
 @EnableWebMvc
-@ComponentScan(basePackages = "org.mailoverlord.server.controllers")
+@ComponentScan(basePackages = {"org.mailoverlord.server.controllers", "org.mailoverlord.server.service"})
 public class WebConfig extends WebMvcConfigurerAdapter implements WebApplicationInitializer {
 
     @Override
@@ -55,7 +49,7 @@ public class WebConfig extends WebMvcConfigurerAdapter implements WebApplication
         environment.setActiveProfiles("production");
         mvcContext.setEnvironment(environment);
         mvcContext.register(WebConfig.class,  WebMvcConfig.class, JpaConfig.class, JndiDataSourceConfig.class,
-                            ApplicationConfig.class);
+                            ApplicationConfig.class, JndiMailSessionConfig.class);
 
         ServletRegistration.Dynamic dispatcher = servletContext.addServlet(
                 "dispatcher", new DispatcherServlet(mvcContext));
