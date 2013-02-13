@@ -2,9 +2,9 @@ package org.mailoverlord.server.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.mail.javamail.JavaMailSenderImpl;
 
 import javax.mail.Session;
+import java.util.Properties;
 
 /**
  * When in test mode, just return a Session pointing to the mail overlord smtp server.
@@ -17,10 +17,10 @@ public class TestMailSessionConfig {
 
     @Bean
     public Session session() {
-        JavaMailSenderImpl javaMailSender = new JavaMailSenderImpl();
-        javaMailSender.setPort(PORT);
-        javaMailSender.setHost(HOST);
-        return javaMailSender.getSession();
+        Properties properties = new Properties();
+        properties.put("mail.smtp.host", HOST);
+        properties.put("mail.smtp.port", PORT);
+        return Session.getDefaultInstance(properties);
     }
 
 }
