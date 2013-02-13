@@ -5,20 +5,18 @@ import org.junit.runner.RunWith;
 import org.mailoverlord.server.config.ApplicationConfig;
 import org.mailoverlord.server.config.EmbeddedDataSourceConfig;
 import org.mailoverlord.server.config.JpaConfig;
+import org.mailoverlord.server.config.TestMailSessionConfig;
 import org.mailoverlord.server.entities.Message;
 import org.mailoverlord.server.repositories.MessageRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
 import org.subethamail.smtp.client.SmartClient;
 import org.subethamail.smtp.server.SMTPServer;
 
-import javax.mail.BodyPart;
-import javax.mail.MessagingException;
-import javax.mail.Multipart;
+import javax.mail.*;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeBodyPart;
 import javax.mail.internet.MimeMessage;
@@ -32,7 +30,7 @@ import static org.junit.Assert.assertTrue;
  * Test for Database Message Handler Factory
  */
 @RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes={JpaConfig.class, EmbeddedDataSourceConfig.class, ApplicationConfig.class})
+@ContextConfiguration(classes={JpaConfig.class, EmbeddedDataSourceConfig.class, TestMailSessionConfig.class, ApplicationConfig.class})
 public class DatabaseMessageHandlerFactoryTest {
 
     private static final Logger logger = LoggerFactory.getLogger(DatabaseMessageHandlerFactoryTest.class);
@@ -50,6 +48,9 @@ public class DatabaseMessageHandlerFactoryTest {
 
     @Autowired
     MessageRepository messageRepository;
+
+    @Autowired
+    Session session;
 
     @Test
     public void testSimpleMessage() {
@@ -80,11 +81,7 @@ public class DatabaseMessageHandlerFactoryTest {
 
     @Test
     public void testMimeMessage() throws MessagingException {
-        JavaMailSenderImpl javaMailSender = new JavaMailSenderImpl();
-        javaMailSender.setPort(PORT);
-        javaMailSender.setHost(HOST);
-
-        MimeMessage mimeMessage = new MimeMessage(javaMailSender.getSession());
+        MimeMessage mimeMessage = new MimeMessage(session);
         mimeMessage.setFrom(new InternetAddress(FROM));
         mimeMessage.addRecipients(javax.mail.Message.RecipientType.TO, TO1);
         mimeMessage.addRecipients(javax.mail.Message.RecipientType.CC, TO2);
@@ -105,7 +102,7 @@ public class DatabaseMessageHandlerFactoryTest {
 
         mimeMessage.setContent(multipart);
 
-        javaMailSender.send(mimeMessage);
+        Transport.send(mimeMessage);
     }
 
 }

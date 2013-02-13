@@ -5,6 +5,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mailoverlord.server.config.EmbeddedDataSourceConfig;
 import org.mailoverlord.server.config.JpaConfig;
+import org.mailoverlord.server.config.TestMailSessionConfig;
 import org.mailoverlord.server.config.WebConfig;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
@@ -24,7 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @RunWith(SpringJUnit4ClassRunner.class)
 @WebAppConfiguration
-@ContextConfiguration(classes={WebConfig.class, EmbeddedDataSourceConfig.class, JpaConfig.class})
+@ContextConfiguration(classes={WebConfig.class, EmbeddedDataSourceConfig.class, JpaConfig.class, TestMailSessionConfig.class})
 public class ControllerTest {
 
     @Autowired
