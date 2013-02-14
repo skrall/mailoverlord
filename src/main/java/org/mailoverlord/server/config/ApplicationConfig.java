@@ -2,6 +2,7 @@ package org.mailoverlord.server.config;
 
 import org.mailoverlord.server.message.DatabaseMessageHandlerFactory;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
 import org.subethamail.smtp.server.SMTPServer;
 
@@ -9,6 +10,7 @@ import org.subethamail.smtp.server.SMTPServer;
  * Application config.
  */
 @Configuration
+@ComponentScan(basePackages = {"org.mailoverlord.server.service"})
 public class ApplicationConfig {
 
     @Bean
