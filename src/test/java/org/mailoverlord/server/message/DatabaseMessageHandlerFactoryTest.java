@@ -64,7 +64,7 @@ public class DatabaseMessageHandlerFactoryTest {
             client.dataWrite(MESSAGE_TEXT.getBytes(), MESSAGE_TEXT.getBytes().length);
             client.dataEnd();
             client.quit();
-            Iterable<Message> messages =  messageRepository.findAll();
+            Iterable<Message> messages =  messageRepository.findByFrom(FROM);
             assertTrue("Message not found in database.", messages.iterator().hasNext());
             Message databaseMessage = messages.iterator().next();
             String expectedTo = String.format("%s,%s", TO1, TO2);
@@ -73,6 +73,7 @@ public class DatabaseMessageHandlerFactoryTest {
             String databaseString = new String(databaseMessage.getData());
             logger.info("Message Body: {}", databaseString);
             assertEquals(MESSAGE_TEXT, databaseString.trim());
+            messageRepository.delete(databaseMessage);
         } catch (IOException e) {
             logger.error("Error while trying to send simple message.", e);
             throw new RuntimeException("Error while trying to send simple message", e);
@@ -103,6 +104,14 @@ public class DatabaseMessageHandlerFactoryTest {
         mimeMessage.setContent(multipart);
 
         Transport.send(mimeMessage);
+
+        Iterable<Message> messages =  messageRepository.findByFrom(FROM);
+        assertTrue("Message not found in database.", messages.iterator().hasNext());
+        Message databaseMessage = messages.iterator().next();
+        String expectedTo = String.format("%s,%s,%s", TO1, TO2, TO3);
+        assertEquals(expectedTo, databaseMessage.getTo());
+        assertEquals(FROM, databaseMessage.getFrom());
+        messageRepository.delete(databaseMessage);
     }
 
 }

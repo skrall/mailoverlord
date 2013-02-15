@@ -19,8 +19,6 @@ import java.util.List;
 @Controller
 public class RestController {
 
-    private static final Logger logger = LoggerFactory.getLogger(RestController.class);
-
     @Autowired
     private MessageRepository messageRepository;
 

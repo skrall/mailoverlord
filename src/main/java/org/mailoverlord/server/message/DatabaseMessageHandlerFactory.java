@@ -10,7 +10,6 @@ import org.subethamail.smtp.MessageContext;
 import org.subethamail.smtp.MessageHandler;
 import org.subethamail.smtp.MessageHandlerFactory;
 import org.subethamail.smtp.RejectException;
-import org.subethamail.smtp.TooMuchDataException;
 
 import java.io.IOException;
 import java.io.InputStream;

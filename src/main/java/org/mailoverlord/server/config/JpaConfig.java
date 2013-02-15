@@ -23,8 +23,6 @@ import javax.sql.DataSource;
 @EnableJpaRepositories("org.mailoverlord.server.repositories")
 public class JpaConfig {
 
-    private static final Logger logger = LoggerFactory.getLogger(JpaConfig.class);
-
     @Autowired
     DataSource dataSource;
 
