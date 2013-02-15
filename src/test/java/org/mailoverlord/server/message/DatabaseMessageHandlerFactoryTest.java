@@ -68,7 +68,9 @@ public class DatabaseMessageHandlerFactoryTest {
             assertTrue("Message not found in database.", messages.iterator().hasNext());
             Message databaseMessage = messages.iterator().next();
             String expectedTo = String.format("%s,%s", TO1, TO2);
+            logger.debug("Database Message To: {}", databaseMessage.getTo());
             assertEquals(expectedTo, databaseMessage.getTo());
+            logger.debug("Database Message From: {}", databaseMessage.getFrom());
             assertEquals(FROM, databaseMessage.getFrom());
             String databaseString = new String(databaseMessage.getData());
             logger.info("Message Body: {}", databaseString);

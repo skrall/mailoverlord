@@ -1,7 +1,5 @@
 package org.mailoverlord.server.config;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,7 +22,7 @@ import javax.sql.DataSource;
 public class JpaConfig {
 
     @Autowired
-    DataSource dataSource;
+    private DataSource dataSource;
 
     @Bean
     public LocalContainerEntityManagerFactoryBean entityManagerFactory() {

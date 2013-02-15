@@ -4,7 +4,6 @@
          name="mailoverlord">
 
     <body>
-
         <menu ref="reports"/>
 
         <menu name="Code Coverage">
