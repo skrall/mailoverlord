@@ -55,9 +55,7 @@
                 <th>From Address</th>
                 <th>To Addresses</th>
                 <th>Received Time</th>
-                <th>Release</th>
-                <th>Modify</th>
-                <th>Delete</th>
+                <th><input type="checkbox" name="selectAll" id="selectAll"/> Select All</th>
             </tr>
             </thead>
             <tbody>
@@ -66,12 +64,21 @@
                     <td>${message.from}</td>
                     <td>${message.to}</td>
                     <td>${message.receivedTimestamp}</td>
-                    <td><button class="btn btn-small">Release</button></td>
-                    <td><button class="btn btn-small btn-info">Modify</button></td>
-                    <td><button class="btn btn-small btn-danger">Delete</button></td>
+                    <td><input type="checkbox" name="messageCheckBox"/></td>
                 </tr>
                 </c:forEach>
             </tbody>
+            <tfoot>
+            <tr>
+                <td colspan="5">
+                    <div id="buttons" class="pull-right">
+                        <button class="btn btn-small">Release</button>
+                        <button class="btn btn-small btn-info">Modify</button>
+                        <button class="btn btn-small btn-danger">Delete</button>
+                    </div>
+                </td>
+            </tr>
+            </tfoot>
         </table>
         <div class="pagination pagination-right">
             <ul>
