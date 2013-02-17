@@ -30,23 +30,23 @@ public class MessageServiceImpl implements MessageService {
             ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(request.getMessage().getData());
             javax.mail.Message message = new MimeMessage(session, byteArrayInputStream);
 
-            String fromAddress = request.getMessage().getFrom();
-            if(request.isOverrideFrom()) {
-                fromAddress = request.getOverrideFromAddress();
+            if (request.isOverrideFrom()) {
+                message.setFrom(new InternetAddress(request.getOverrideFromAddress()));
             }
 
-            String toAddress = request.getMessage().getTo();
-            if(request.isOverrideTo()) {
-                toAddress = request.getOverrideToAddresses();
-            }
-            String[] toAddresses = toAddress.split(",");
-            for(String address : toAddresses) {
-                message.addRecipient(Message.RecipientType.TO, new InternetAddress(address));
+            if (request.isOverrideTo()) {
+                message.setRecipients(Message.RecipientType.TO, null);
+                message.setRecipients(Message.RecipientType.CC, null);
+                message.setRecipients(Message.RecipientType.BCC, null);
+                String toAddress = request.getOverrideToAddresses();
+                String[] toAddresses = toAddress.split(",");
+                for (String address : toAddresses) {
+                    message.addRecipient(Message.RecipientType.TO, new InternetAddress(address));
+                }
             }
 
-            message.setFrom(new InternetAddress(fromAddress));
             Transport.send(message);
-        } catch(Throwable t) {
+        } catch (Throwable t) {
             logger.error("Error while releasing message.", t);
             throw new RuntimeException("Error while releasing message.", t);
         }

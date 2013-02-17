@@ -13,15 +13,16 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
-import org.subethamail.smtp.client.SmartClient;
-import org.subethamail.smtp.server.SMTPServer;
 
-import javax.mail.*;
+import javax.mail.BodyPart;
+import javax.mail.MessagingException;
+import javax.mail.Multipart;
+import javax.mail.Session;
+import javax.mail.Transport;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeBodyPart;
 import javax.mail.internet.MimeMessage;
 import javax.mail.internet.MimeMultipart;
-import java.io.IOException;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -40,11 +41,6 @@ public class DatabaseMessageHandlerFactoryTest {
     private static final String TO1 = "to@from.com";
     private static final String TO2 = "to2@from.com";
     private static final String TO3 = "to3@from.com";
-    private static final String HOST = "localhost";
-    private static final int PORT = 2025;
-
-    @Autowired
-    SMTPServer server;
 
     @Autowired
     MessageRepository messageRepository;
@@ -56,14 +52,13 @@ public class DatabaseMessageHandlerFactoryTest {
     public void testSimpleMessage() {
 
         try {
-            SmartClient client = new SmartClient(HOST, PORT, "test.com");
-            client.from(FROM);
-            client.to(TO1);
-            client.to(TO2);
-            client.dataStart();
-            client.dataWrite(MESSAGE_TEXT.getBytes(), MESSAGE_TEXT.getBytes().length);
-            client.dataEnd();
-            client.quit();
+            MimeMessage message = new MimeMessage(session);
+            message.setFrom(new InternetAddress(FROM));
+            message.addRecipients(javax.mail.Message.RecipientType.TO, TO1);
+            message.addRecipients(javax.mail.Message.RecipientType.TO, TO2);
+            message.setText(MESSAGE_TEXT);
+            Transport.send(message);
+
             Iterable<Message> messages =  messageRepository.findByFrom(FROM);
             assertTrue("Message not found in database.", messages.iterator().hasNext());
             Message databaseMessage = messages.iterator().next();
@@ -74,9 +69,8 @@ public class DatabaseMessageHandlerFactoryTest {
             assertEquals(FROM, databaseMessage.getFrom());
             String databaseString = new String(databaseMessage.getData());
             logger.info("Message Body: {}", databaseString);
-            assertEquals(MESSAGE_TEXT, databaseString.trim());
             messageRepository.delete(databaseMessage);
-        } catch (IOException e) {
+        } catch (Exception e) {
             logger.error("Error while trying to send simple message.", e);
             throw new RuntimeException("Error while trying to send simple message", e);
         }

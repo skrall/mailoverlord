@@ -53,6 +53,8 @@ public class MessageServiceTest {
             MimeMessage mimeMessage = new MimeMessage(session);
             mimeMessage.setFrom(new InternetAddress("messageservicetest@email.com"));
             mimeMessage.addRecipients(javax.mail.Message.RecipientType.TO, "to@email.com");
+            mimeMessage.addRecipients(javax.mail.Message.RecipientType.CC,  "cc@email.com");
+            mimeMessage.addRecipients(javax.mail.Message.RecipientType.BCC, "bcc@email.com");
 
             mimeMessage.setSubject("This is a test message");
 
@@ -86,7 +88,8 @@ public class MessageServiceTest {
             messageService.releaseMessage(request);
 
             List<Message> insertedMessages = messageRepository.findByFrom("messageservicetest@email.com");
-            //assertEquals("Number of messages not what is expected", 2, insertedMessages.size());
+            assertEquals("Number of messages not what is expected", 2, insertedMessages.size());
+            // TODO - Assert the results are what are expected.
         }
     }
 
@@ -105,6 +108,7 @@ public class MessageServiceTest {
 
             List<Message> insertedMessages = messageRepository.findByFrom("override@override.com");
             assertEquals("Number of messages not what is expected", 1, insertedMessages.size());
+            // TODO - Assert the results are what are expected.
         }
     }
 }
