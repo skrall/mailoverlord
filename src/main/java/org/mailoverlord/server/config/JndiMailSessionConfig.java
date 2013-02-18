@@ -25,7 +25,7 @@ public class JndiMailSessionConfig {
             InitialContext ic = new InitialContext();
             session = (Session)ic.lookup("java:comp/env/mail/overlord-mail");
         } catch(Exception e) {
-            logger.error("Error while looking up datasource.", e);
+            logger.error("Error while looking up mail session.", e);
         }
         return session;
     }

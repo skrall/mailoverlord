@@ -84,7 +84,7 @@ public class MessageServiceTest {
         if(messages.iterator().hasNext()) {
             Message message = messages.iterator().next();
             MessageReleaseRequest request = new MessageReleaseRequest();
-            request.setMessage(message);
+            request.addMessageId(message.getId());
             messageService.releaseMessage(request);
 
             List<Message> insertedMessages = messageRepository.findByFrom("messageservicetest@email.com");
@@ -99,7 +99,7 @@ public class MessageServiceTest {
         if(messages.iterator().hasNext()) {
             Message message = messages.iterator().next();
             MessageReleaseRequest request = new MessageReleaseRequest();
-            request.setMessage(message);
+            request.addMessageId(message.getId());
             request.setOverrideFrom(true);
             request.setOverrideFromAddress("override@override.com");
             request.setOverrideTo(true);

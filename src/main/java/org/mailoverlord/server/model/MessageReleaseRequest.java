@@ -2,23 +2,30 @@ package org.mailoverlord.server.model;
 
 import org.mailoverlord.server.entities.Message;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
- * Contains the information required when releasing a message from the database to the forwarding SMTP server.
+ * Contains the information required when releasing a messageIds from the database to the forwarding SMTP server.
  */
 public class MessageReleaseRequest {
 
-    private Message message;
+    private List<Long> messageIds = new ArrayList<>();
     private boolean overrideTo;
     private String overrideToAddresses;
     private boolean overrideFrom;
     private String overrideFromAddress;
 
-    public Message getMessage() {
-        return message;
+    public List<Long> getMessageIds() {
+        return messageIds;
     }
 
-    public void setMessage(Message message) {
-        this.message = message;
+    public void setMessageIds(List<Long> messageIds) {
+        this.messageIds = messageIds;
+    }
+
+    public void addMessageId(Long id) {
+        messageIds.add(id);
     }
 
     public boolean isOverrideTo() {

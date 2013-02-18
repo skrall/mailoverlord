@@ -1,0 +1,22 @@
+#
+# Database connection properties
+#
+overlord.db.class=org.postgresql.Driver
+overlord.db.url=jdbc:postgresql://localhost:5432/overlord
+overlord.db.username=username
+overlord.db.password=password
+overlord.db.test.on.borrow=true
+overlord.db.validation.query=select 1
+
+#
+# Mail Session properties.  This should be a valid smtp server that overlord will release emails to.
+#
+overlord.mail.username=username
+overlord.mail.password=password
+overlord.mail.smtp.host=smtp.company.com
+overlord.mail.smtp.port=25
+overlord.mail.smtp.auth=true
+overlord.mail.smtp.socket.factory=javax.net.ssl.SSLSocketFactory
+overlord.mail.smtp.starttls=true
+overlord.mail.from=from@company.com
+overlord.mail.debug=true

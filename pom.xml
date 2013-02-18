@@ -11,8 +11,8 @@
     <url>https://github.com/skrall/mailoverlord-server</url>
 
     <issueManagement>
-        <url>https://github.com/skrall/mailoverlord-server/issues</url>
-        <system>GitHub Issues</system>
+        <url>https://github.com/skrall/mailoverlord-server/issues/</url>
+        <system>GitHub</system>
     </issueManagement>
 
     <licenses>
@@ -26,6 +26,7 @@
 
     <developers>
         <developer>
+            <id>skrall</id>
             <name>Steve Krall</name>
             <email>skrall@gmail.com</email>
         </developer>
@@ -39,6 +40,9 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <jetty-system-properties-file>${project.basedir}/src/main/config/overlord-jetty.properties</jetty-system-properties-file>
+        <jetty-env-file>${project.basedir}/src/main/config/jetty-env.xml</jetty-env-file>
 
         <spring.version>3.2.1.RELEASE</spring.version>
         <spring.data.version>1.3.0.RELEASE</spring.data.version>
@@ -86,10 +90,12 @@
                 <artifactId>jetty-maven-plugin</artifactId>
                 <version>8.1.9.v20130131</version>
                 <configuration>
+                    <systemPropertiesFile>${jetty-system-properties-file}</systemPropertiesFile>
                     <scanIntervalSeconds>10</scanIntervalSeconds>
                     <useTestClasspath>true</useTestClasspath>
                     <webApp>
                         <contextPath>/mailoverlord</contextPath>
+                        <jettyEnvXml>${jetty-env-file}</jettyEnvXml>
                     </webApp>
                 </configuration>
             </plugin>

@@ -1,7 +1,7 @@
 package org.mailoverlord.server.controllers;
 
-import org.mailoverlord.server.model.MessageJspData;
 import org.mailoverlord.server.entities.Message;
+import org.mailoverlord.server.model.MessageJspData;
 import org.mailoverlord.server.model.Pagination;
 import org.mailoverlord.server.repositories.MessageRepository;
 import org.slf4j.Logger;
@@ -17,9 +17,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
  * Index Controller
  */
 @Controller
-public class IndexController {
+public class MessageController {
 
-    private static final Logger logger = LoggerFactory.getLogger(IndexController.class);
+    private static final Logger logger = LoggerFactory.getLogger(MessageController.class);
 
     @Autowired
     private MessageRepository messageRepository;

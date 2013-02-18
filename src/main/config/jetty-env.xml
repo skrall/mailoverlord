@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+<!DOCTYPE Configure PUBLIC "-//Mort Bay Consulting//DTD Configure//EN" "http://jetty.mortbay.org/configure.dtd">
+<Configure class="org.eclipse.jetty.webapp.WebAppContext">
+    <New id="overloard-datasource" class="org.eclipse.jetty.plus.jndi.Resource">
+        <Arg>jdbc/overlord-datasource</Arg>
+        <Arg>
+            <New class="org.apache.commons.dbcp.BasicDataSource">
+                <Set name="driverClassName"><SystemProperty name="overlord.db.class" default="unknown"/></Set>
+                <Set name="url"><SystemProperty name="overlord.db.url" default="unknown"/></Set>
+                <Set name="username"><SystemProperty name="overlord.db.username" default="unknown"/></Set>
+                <Set name="testOnBorrow"><SystemProperty name="overlord.db.test.on.borrow" default="unknown"/></Set>
+                <Set name="validationQuery"><SystemProperty name="overlord.db.validation.query"
+                                                            default="unknown"/></Set>
+            </New>
+        </Arg>
+    </New>
+    <New id="mail" class="org.eclipse.jetty.plus.jndi.Resource">
+        <Arg>mail/overlord-mail</Arg>
+        <Arg>
+            <New class="org.eclipse.jetty.jndi.factories.MailSessionReference">
+                <Set name="user"><SystemProperty name="overlord.mail.username" default="unknown"/></Set>
+                <Set name="password"><SystemProperty name="overlord.mail.password" default="unknown"/></Set>
+                <Set name="properties">
+                    <New class="java.util.Properties">
+                        <Put name="mail.smtp.host"><SystemProperty name="overlord.mail.smtp.host"
+                                                                      default="unknown"/></Put>
+                        <Put name="mail.smtp.auth"><SystemProperty name="overlord.mail.smtp.auth"
+                                                                      default="unknown"/></Put>
+                        <Put name="mail.smtp.port"><SystemProperty name="overlord.mail.smtp.port"
+                                                                      default="unknown"/></Put>
+                        <Put name="mail.smtp.socketFactory.port"><SystemProperty name="overlord.mail.smtp.port"
+                                                                      default="unknown"/></Put>
+                        <Put name="mail.smtp.socketFactory.class"><SystemProperty
+                                name="overlord.mail.smtp.socket.factory" default="unknown"/></Put>
+                        <Put name="mail.smtp.starttls.enable"><SystemProperty name="overlord.mail.smtp.starttls"
+                                                                              default="unknown"/></Put>
+                        <Put name="mail.from"><SystemProperty name="overlord.mail.from" default="unknown"/></Put>
+                        <Put name="mail.debug"><SystemProperty name="overlord.mail.debug" default="unknown"/></Put>
+                    </New>
+                </Set>
+            </New>
+        </Arg>
+    </New>
+</Configure>

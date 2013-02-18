@@ -47,7 +47,7 @@
 
 <div class="container">
 
-    <!-- Main hero unit for a primary marketing message or call to action -->
+    <!-- Main hero unit for a primary marketing messageIds or call to action -->
     <div class="hero-unit">
         <table class="table">
             <thead>
@@ -59,7 +59,7 @@
             </tr>
             </thead>
             <tbody>
-                <c:forEach var="message" items="${messageJspData.page.content}">
+                <c:forEach var="messageIds" items="${messageJspData.page.content}">
                 <tr>
                     <td>${message.from}</td>
                     <td>${message.to}</td>
