@@ -46,7 +46,7 @@ public class ControllerTest {
 
     @Test
     public void testTable() throws Exception {
-        mockMvc.perform(get("/messages").accept(MediaType.APPLICATION_JSON))
+        mockMvc.perform(get("/messages/list").accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType("application/json"));
     }
