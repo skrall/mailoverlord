@@ -24,6 +24,9 @@
     <link rel="stylesheet" href="<c:url value='/resources/css/main.css'/>">
 
     <script src="<c:url value='/resources/js/vendor/modernizr-2.6.2-respond-1.1.0.min.js'/>"></script>
+    <script type="text/javascript">
+        contextRoot = <c:url value='/'/>
+    </script>
 </head>
 <body>
 <!--[if lt IE 7]>
@@ -59,12 +62,12 @@
             </tr>
             </thead>
             <tbody>
-                <c:forEach var="messageIds" items="${messageJspData.page.content}">
+                <c:forEach var="message" items="${messageJspData.page.content}">
                 <tr>
                     <td>${message.from}</td>
                     <td>${message.to}</td>
                     <td>${message.receivedTimestamp}</td>
-                    <td><input type="checkbox" name="messageCheckBox"/></td>
+                    <td><input type="checkbox" name="messageCheckBox" value="${message.id}"/></td>
                 </tr>
                 </c:forEach>
             </tbody>
@@ -72,9 +75,9 @@
             <tr>
                 <td colspan="5">
                     <div id="buttons" class="pull-right">
-                        <button class="btn btn-small">Release</button>
-                        <button class="btn btn-small btn-info">Modify</button>
-                        <button class="btn btn-small btn-danger">Delete</button>
+                        <button id="releaseButton" class="btn btn-small">Release</button>
+                        <button id="modifyButton" class="btn btn-small btn-info">Modify</button>
+                        <button id="deleteButton" class="btn btn-small btn-danger">Delete</button>
                     </div>
                 </td>
             </tr>

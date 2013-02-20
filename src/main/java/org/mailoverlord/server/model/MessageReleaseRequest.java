@@ -1,7 +1,5 @@
 package org.mailoverlord.server.model;
 
-import org.mailoverlord.server.entities.Message;
-
 import java.util.ArrayList;
 import java.util.List;
 
