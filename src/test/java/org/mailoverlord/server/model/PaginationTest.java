@@ -27,6 +27,11 @@ public class PaginationTest {
         assertEquals("Selected page does not match", 1, pagination.getCurrentPageNumber());
         assertEquals("Is First Page does not match", true, pagination.isFirstPage());
         assertEquals("Is Last Page does not match", false, pagination.isLastPage());
+        assertEquals("Previous Page Link Number does not match", 1, pagination.getPreviousPageLinkNumber());
+        assertEquals("Next Page Link Number does not match", 6, pagination.getNextPageLinkNumber());
+        assertEquals("Is Display Previous Page Link does not match", false, pagination.isDisplayPreviousPageLink());
+        assertEquals("Is Display Next Page Link does not match", true, pagination.isDisplayNextPageLink());
+        assertEquals("Total Pages does not match", 10, pagination.getTotalPages());
     }
 
     @Test
@@ -44,6 +49,11 @@ public class PaginationTest {
         assertEquals("Selected page does not match", 2, pagination.getCurrentPageNumber());
         assertEquals("Is First Page does not match", false, pagination.isFirstPage());
         assertEquals("Is Last Page does not match", false, pagination.isLastPage());
+        assertEquals("Previous Page Link Number does not match", 1, pagination.getPreviousPageLinkNumber());
+        assertEquals("Next Page Link Number does not match", 6, pagination.getNextPageLinkNumber());
+        assertEquals("Is Display Previous Page Link does not match", false, pagination.isDisplayPreviousPageLink());
+        assertEquals("Is Display Next Page Link does not match", true, pagination.isDisplayNextPageLink());
+        assertEquals("Total Pages does not match", 10, pagination.getTotalPages());
     }
 
     @Test
@@ -61,6 +71,11 @@ public class PaginationTest {
         assertEquals("Selected page does not match", 3, pagination.getCurrentPageNumber());
         assertEquals("Is First Page does not match", false, pagination.isFirstPage());
         assertEquals("Is Last Page does not match", false, pagination.isLastPage());
+        assertEquals("Previous Page Link Number does not match", 1, pagination.getPreviousPageLinkNumber());
+        assertEquals("Next Page Link Number does not match", 6, pagination.getNextPageLinkNumber());
+        assertEquals("Is Display Previous Page Link does not match", false, pagination.isDisplayPreviousPageLink());
+        assertEquals("Is Display Next Page Link does not match", true, pagination.isDisplayNextPageLink());
+        assertEquals("Total Pages does not match", 10, pagination.getTotalPages());
     }
 
     @Test
@@ -78,6 +93,11 @@ public class PaginationTest {
         assertEquals("Selected page does not match", 4, pagination.getCurrentPageNumber());
         assertEquals("Is First Page does not match", false, pagination.isFirstPage());
         assertEquals("Is Last Page does not match", false, pagination.isLastPage());
+        assertEquals("Previous Page Link Number does not match", 1, pagination.getPreviousPageLinkNumber());
+        assertEquals("Next Page Link Number does not match", 7, pagination.getNextPageLinkNumber());
+        assertEquals("Is Display Previous Page Link does not match", true, pagination.isDisplayPreviousPageLink());
+        assertEquals("Is Display Next Page Link does not match", true, pagination.isDisplayNextPageLink());
+        assertEquals("Total Pages does not match", 10, pagination.getTotalPages());
     }
 
     @Test
@@ -95,6 +115,11 @@ public class PaginationTest {
         assertEquals("Selected page does not match", 7, pagination.getCurrentPageNumber());
         assertEquals("Is First Page does not match", false, pagination.isFirstPage());
         assertEquals("Is Last Page does not match", false, pagination.isLastPage());
+        assertEquals("Previous Page Link Number does not match", 4, pagination.getPreviousPageLinkNumber());
+        assertEquals("Next Page Link Number does not match", 10, pagination.getNextPageLinkNumber());
+        assertEquals("Is Display Previous Page Link does not match", true, pagination.isDisplayPreviousPageLink());
+        assertEquals("Is Display Next Page Link does not match", true, pagination.isDisplayNextPageLink());
+        assertEquals("Total Pages does not match", 10, pagination.getTotalPages());
     }
 
     @Test
@@ -112,6 +137,11 @@ public class PaginationTest {
         assertEquals("Selected page does not match", 8, pagination.getCurrentPageNumber());
         assertEquals("Is First Page does not match", false, pagination.isFirstPage());
         assertEquals("Is Last Page does not match", false, pagination.isLastPage());
+        assertEquals("Previous Page Link Number does not match", 5, pagination.getPreviousPageLinkNumber());
+        assertEquals("Next Page Link Number does not match", 10, pagination.getNextPageLinkNumber());
+        assertEquals("Is Display Previous Page Link does not match", true, pagination.isDisplayPreviousPageLink());
+        assertEquals("Is Display Next Page Link does not match", false, pagination.isDisplayNextPageLink());
+        assertEquals("Total Pages does not match", 10, pagination.getTotalPages());
     }
 
     @Test
@@ -129,6 +159,11 @@ public class PaginationTest {
         assertEquals("Selected page does not match", 9, pagination.getCurrentPageNumber());
         assertEquals("Is First Page does not match", false, pagination.isFirstPage());
         assertEquals("Is Last Page does not match", false, pagination.isLastPage());
+        assertEquals("Previous Page Link Number does not match", 5, pagination.getPreviousPageLinkNumber());
+        assertEquals("Next Page Link Number does not match", 10, pagination.getNextPageLinkNumber());
+        assertEquals("Is Display Previous Page Link does not match", true, pagination.isDisplayPreviousPageLink());
+        assertEquals("Is Display Next Page Link does not match", false, pagination.isDisplayNextPageLink());
+        assertEquals("Total Pages does not match", 10, pagination.getTotalPages());
     }
 
     @Test
@@ -146,6 +181,11 @@ public class PaginationTest {
         assertEquals("Selected page does not match", 10, pagination.getCurrentPageNumber());
         assertEquals("Is First Page does not match", false, pagination.isFirstPage());
         assertEquals("Is Last Page does not match", true, pagination.isLastPage());
+        assertEquals("Previous Page Link Number does not match", 5, pagination.getPreviousPageLinkNumber());
+        assertEquals("Next Page Link Number does not match", 10, pagination.getNextPageLinkNumber());
+        assertEquals("Is Display Previous Page Link does not match", true, pagination.isDisplayPreviousPageLink());
+        assertEquals("Is Display Next Page Link does not match", false, pagination.isDisplayNextPageLink());
+        assertEquals("Total Pages does not match", 10, pagination.getTotalPages());
     }
 
     @Test
@@ -163,6 +203,11 @@ public class PaginationTest {
         assertEquals("Selected page does not match", 1, pagination.getCurrentPageNumber());
         assertEquals("Is First Page does not match", true, pagination.isFirstPage());
         assertEquals("Is Last Page does not match", true, pagination.isLastPage());
+        assertEquals("Previous Page Link Number does not match", 1, pagination.getPreviousPageLinkNumber());
+        assertEquals("Next Page Link Number does not match", 1, pagination.getNextPageLinkNumber());
+        assertEquals("Is Display Previous Page Link does not match", false, pagination.isDisplayPreviousPageLink());
+        assertEquals("Is Display Next Page Link does not match", false, pagination.isDisplayNextPageLink());
+        assertEquals("Total Pages does not match", 1, pagination.getTotalPages());
     }
 
     @Test
@@ -180,6 +225,11 @@ public class PaginationTest {
         assertEquals("Selected page does not match", 1, pagination.getCurrentPageNumber());
         assertEquals("Is First Page does not match", true, pagination.isFirstPage());
         assertEquals("Is Last Page does not match", false, pagination.isLastPage());
+        assertEquals("Previous Page Link Number does not match", 1, pagination.getPreviousPageLinkNumber());
+        assertEquals("Next Page Link Number does not match", 2, pagination.getNextPageLinkNumber());
+        assertEquals("Is Display Previous Page Link does not match", false, pagination.isDisplayPreviousPageLink());
+        assertEquals("Is Display Next Page Link does not match", false, pagination.isDisplayNextPageLink());
+        assertEquals("Total Pages does not match", 2, pagination.getTotalPages());
     }
 
     @Test
@@ -197,6 +247,11 @@ public class PaginationTest {
         assertEquals("Selected page does not match", 2, pagination.getCurrentPageNumber());
         assertEquals("Is First Page does not match", false, pagination.isFirstPage());
         assertEquals("Is Last Page does not match", true, pagination.isLastPage());
+        assertEquals("Previous Page Link Number does not match", 1, pagination.getPreviousPageLinkNumber());
+        assertEquals("Next Page Link Number does not match", 2, pagination.getNextPageLinkNumber());
+        assertEquals("Is Display Previous Page Link does not match", false, pagination.isDisplayPreviousPageLink());
+        assertEquals("Is Display Next Page Link does not match", false, pagination.isDisplayNextPageLink());
+        assertEquals("Total Pages does not match", 2, pagination.getTotalPages());
     }
 
     @Test
@@ -214,5 +269,10 @@ public class PaginationTest {
         assertEquals("Selected page does not match", 4, pagination.getCurrentPageNumber());
         assertEquals("Is First Page does not match", false, pagination.isFirstPage());
         assertEquals("Is Last Page does not match", true, pagination.isLastPage());
+        assertEquals("Previous Page Link Number does not match", 1, pagination.getPreviousPageLinkNumber());
+        assertEquals("Next Page Link Number does not match", 4, pagination.getNextPageLinkNumber());
+        assertEquals("Is Display Previous Page Link does not match", false, pagination.isDisplayPreviousPageLink());
+        assertEquals("Is Display Next Page Link does not match", false, pagination.isDisplayNextPageLink());
+        assertEquals("Total Pages does not match", 4, pagination.getTotalPages());
     }
 }

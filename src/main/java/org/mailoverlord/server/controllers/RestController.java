@@ -3,6 +3,7 @@ package org.mailoverlord.server.controllers;
 import org.mailoverlord.server.entities.Message;
 import org.mailoverlord.server.model.MessageDeleteRequest;
 import org.mailoverlord.server.model.MessageReleaseRequest;
+import org.mailoverlord.server.model.MessageResponse;
 import org.mailoverlord.server.repositories.MessageRepository;
 import org.mailoverlord.server.service.MessageService;
 import org.slf4j.Logger;
@@ -34,20 +35,42 @@ public class RestController {
 
     @RequestMapping(value = "/messages/list", produces = {"application/xml", "application/json"},
                     method = RequestMethod.GET)
-    public @ResponseBody List<Message> getTableData(Pageable pageable) {
+    public
+    @ResponseBody
+    List<Message> getTableData(Pageable pageable) {
         Page<Message> page = messageRepository.findAll(pageable);
         return page.getContent();
     }
 
     @RequestMapping(value = "/messages/delete", method = RequestMethod.POST)
-    public void deleteMessages(@RequestBody MessageDeleteRequest messageDeleteRequest) {
+    public
+    @ResponseBody
+    MessageResponse deleteMessages(@RequestBody MessageDeleteRequest messageDeleteRequest) {
         logger.debug("Got MessageDeleteRequest, size: " + messageDeleteRequest.getMessageIds().size());
-        messageService.deleteMessage(messageDeleteRequest);
+        MessageResponse response = new MessageResponse();
+        try {
+            messageService.deleteMessage(messageDeleteRequest);
+        } catch (Throwable t) {
+            logger.error("Error while deleting messages.", t);
+            response.setSuccessful(false);
+            response.setErrorMessage(t.getMessage());
+        }
+        return response;
     }
 
     @RequestMapping(value = "/messages/release", method = RequestMethod.POST)
-    public void releaseMessages(@RequestBody MessageReleaseRequest messageReleaseRequest) {
+    public
+    @ResponseBody
+    MessageResponse releaseMessages(@RequestBody MessageReleaseRequest messageReleaseRequest) {
         logger.debug("Got MessageReleaseRequest, size: " + messageReleaseRequest.getMessageIds().size());
-        messageService.releaseMessage(messageReleaseRequest);
+        MessageResponse response = new MessageResponse();
+        try {
+            messageService.releaseMessage(messageReleaseRequest);
+        } catch (Throwable t) {
+            logger.error("Error while trying to release messages.", t);
+            response.setSuccessful(false);
+            response.setErrorMessage(t.getMessage());
+        }
+        return response;
     }
 }
