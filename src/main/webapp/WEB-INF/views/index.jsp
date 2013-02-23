@@ -14,12 +14,6 @@
     <meta name="viewport" content="width=device-width">
 
     <link rel="stylesheet" href="<c:url value='/resources/css/bootstrap.min.css'/>">
-    <style>
-        body {
-            padding-top: 60px;
-            padding-bottom: 40px;
-        }
-    </style>
     <link rel="stylesheet" href="<c:url value='/resources/css/bootstrap-responsive.min.css'/>">
     <link rel="stylesheet" href="<c:url value='/resources/css/main.css'/>">
 

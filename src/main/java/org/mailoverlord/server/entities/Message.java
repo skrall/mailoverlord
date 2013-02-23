@@ -1,7 +1,9 @@
 package org.mailoverlord.server.entities;
 
+import javax.persistence.Basic;
 import javax.persistence.Column;
 import javax.persistence.Entity;
+import javax.persistence.FetchType;
 import javax.persistence.GeneratedValue;
 import javax.persistence.Id;
 import javax.persistence.Lob;
@@ -60,6 +62,7 @@ public class Message {
     }
 
     @Column(name = "DATA")
+    @Basic(fetch = FetchType.LAZY)
     @Lob
     public byte[] getData() {
         return data;

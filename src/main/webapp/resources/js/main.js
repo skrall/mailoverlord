@@ -25,10 +25,15 @@ function performDelete() {
               })
         .fail(function () {
                   console.log("Error...");
+              })
+        .always(function() {
+                  $('#yesNoModel').modal('hide');
               });
+
 }
 
 function performRelease() {
+    $("#yesNoModelBody").html("<img src='" + contextRoot + "resources/img/spinner.gif'>");
     var ids = getSelectedMessageIds();
     var messageReleaseRequest = {messageIds: ids};
     $.ajax({
@@ -44,16 +49,18 @@ function performRelease() {
               })
         .fail(function () {
                   console.log("Error...");
-              });
+              })
+        .always(function() {
+                  $('#yesNoModel').modal('hide');
+                    });
 }
 
 function displayYesNoDialog(operation, title, body) {
-    $("#yesNoModelLabel").text(title)
+    $("#yesNoModelLabel").text(title);
     $("#yesNoModelBody").text(body);
     $("yesNoDialogYesButton").off();
     $("#yesNoDialogYesButton").on("click", function () {
         operation();
-        $('#yesNoModel').modal('hide');
     });
     $("#yesNoModel").modal('show');
 }
