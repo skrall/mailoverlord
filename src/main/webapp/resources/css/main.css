@@ -4,6 +4,15 @@
    Author's custom styles
    ========================================================================== */
 
+body {
+    min-width: 768px;
+}
+
+.from {
+    max-width: 250px;
+    overflow: hidden;
+    text-overflow: ellipsis
+}
 
 
 

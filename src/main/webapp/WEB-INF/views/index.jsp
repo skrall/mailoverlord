@@ -65,7 +65,9 @@
                 <c:forEach var="message" items="${messageJspData.page.content}">
                 <tr>
                     <td>${message.from}</td>
-                    <td>${message.to}</td>
+                    <td>
+                        <div class="from">${message.to}</div>
+                    </td>
                     <td>${message.receivedTimestamp}</td>
                     <td><input type="checkbox" name="messageCheckBox" value="${message.id}"/></td>
                 </tr>
@@ -139,5 +141,22 @@
         s.parentNode.insertBefore(g,s)}(document,'script'));
 </script>
 --%>
+
+<!-- Yes / No Modal -->
+<div id="yesNoModel" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="yesNoModelLabel"
+     aria-hidden="true">
+    <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">x</button>
+        <h3 id="yesNoModelLabel">..... Put model title in here ....</h3>
+    </div>
+    <div class="modal-body">
+        <p>.... Put message in here ....</p>
+    </div>
+    <div class="modal-footer">
+        <button class="btn" data-dismiss="modal" aria-hidden="true">No</button>
+        <button id="yesNoDialogYesButton" class="btn">Yes</button>
+    </div>
+</div>
+
 </body>
 </html>
