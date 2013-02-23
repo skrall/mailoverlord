@@ -28,6 +28,36 @@ function performDelete() {
               });
 }
 
+function performRelease() {
+    var ids = getSelectedMessageIds();
+    var messageReleaseRequest = {messageIds: ids};
+    $.ajax({
+               url: contextRoot + "messages/release",
+               contentType: "application/json",
+               type: "POST",
+               data: JSON.stringify(messageReleaseRequest),
+               processData: false
+           })
+        .done(function () {
+                  console.log("Success...");
+                  location.reload();
+              })
+        .fail(function () {
+                  console.log("Error...");
+              });
+}
+
+function displayYesNoDialog(operation, title, body) {
+    $("#yesNoModelLabel").text(title)
+    $("#yesNoModelBody").text(body);
+    $("yesNoDialogYesButton").off();
+    $("#yesNoDialogYesButton").on("click", function () {
+        operation();
+        $('#yesNoModel').modal('hide');
+    });
+    $("#yesNoModel").modal('show');
+}
+
 $(document).ready(function () {
 
     $("#selectAll").click(function () {
@@ -36,29 +66,10 @@ $(document).ready(function () {
     });
 
     $("#deleteButton").click(function () {
-        $("yesNoDialogYesButton").off();
-        $("#yesNoDialogYesButton").on("click", function() {
-            performDelete();
-            $('#yesNoModel').modal('hide');
-        });
-        $("#yesNoModel").modal('show');
+        displayYesNoDialog(performDelete, "Delete selected messages?", "Do you want to remove the selected messages permanently?")
     });
 
     $("#releaseButton").click(function () {
-        var ids = getSelectedMessageIds();
-        var messageReleaseRequest = {messageIds: ids};
-        $.ajax({
-                   url: contextRoot + "messages/release",
-                   contentType: "application/json",
-                   type: "POST",
-                   data: JSON.stringify(messageReleaseRequest),
-                   processData: false
-               })
-            .done(function () {
-                      console.log("Success...");
-                  })
-            .fail(function () {
-                      console.log("Error...");
-                  });
+        displayYesNoDialog(performRelease, "Release selected messages?", "Do you want to release the selected messages?");
     });
 });

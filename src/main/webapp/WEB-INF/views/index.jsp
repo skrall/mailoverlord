@@ -150,7 +150,7 @@
         <h3 id="yesNoModelLabel">..... Put model title in here ....</h3>
     </div>
     <div class="modal-body">
-        <p>.... Put message in here ....</p>
+        <p id="yesNoModelBody">.... Put message in here ....</p>
     </div>
     <div class="modal-footer">
         <button class="btn" data-dismiss="modal" aria-hidden="true">No</button>
