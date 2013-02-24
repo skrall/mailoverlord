@@ -19,7 +19,7 @@
 
     <script src="<c:url value='/resources/js/vendor/modernizr-2.6.2-respond-1.1.0.min.js'/>"></script>
     <script type="text/javascript">
-        contextRoot = <c:url value='/'/>
+        contextRoot = <c:url value='/'/>;
     </script>
 </head>
 <body>

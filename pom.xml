@@ -3,15 +3,15 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.mailoverlord</groupId>
-    <artifactId>mailoverlord-server</artifactId>
+    <artifactId>mailoverlord</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <packaging>war</packaging>
 
-    <name>mailoverlord-server</name>
-    <url>https://github.com/skrall/mailoverlord-server</url>
+    <name>mailoverlord</name>
+    <url>https://github.com/skrall/mailoverlord</url>
 
     <issueManagement>
-        <url>https://github.com/skrall/mailoverlord-server/issues/</url>
+        <url>https://github.com/skrall/mailoverlord/issues/</url>
         <system>GitHub</system>
     </issueManagement>
 
@@ -33,9 +33,9 @@
     </developers>
 
     <scm>
-        <connection>scm:git:git://github.com/skrall/mailoverlord-server.git</connection>
-        <url>https://github.com/skrall/mailoverlord-server</url>
-        <developerConnection>scm:git:git@github.com:skrall/mailoverlord-server.git</developerConnection>
+        <connection>scm:git:git://github.com/skrall/mailoverlord.git</connection>
+        <url>https://github.com/skrall/mailoverlord</url>
+        <developerConnection>scm:git:git@github.com:skrall/mailoverlord.git</developerConnection>
     </scm>
 
     <properties>
