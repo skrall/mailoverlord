@@ -71,9 +71,13 @@
             <tr>
                 <td colspan="5">
                     <div id="buttons" class="pull-right">
-                        <button id="releaseButton" class="btn btn-small">Release</button>
-                        <button id="modifyButton" class="btn btn-small btn-info">Modify</button>
-                        <button id="deleteButton" class="btn btn-small btn-danger">Delete</button>
+                        <button id="releaseButton" class="btn btn-small" data-toggle="tooltip"
+                                title="Release email as is, without changing to or from address.">Release</button>
+                        <button id="modifyButton" class="btn btn-small btn-info" data-toggle="tooltip"
+                                title="Release the email with a chance to change to the to and or from address">Modif
+                            y</button>
+                        <button id="deleteButton" class="btn btn-small btn-danger" data-toggle="tool-tip"
+                                title="Delete the message permanently.">Delete</button>
                     </div>
                 </td>
             </tr>
@@ -140,7 +144,7 @@
 <div id="yesNoModel" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="yesNoModelLabel"
      aria-hidden="true">
     <div class="modal-header">
-        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">x</button>
+        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
         <h3 id="yesNoModelLabel">..... Put model title in here ....</h3>
     </div>
     <div class="modal-body">
@@ -149,6 +153,38 @@
     <div class="modal-footer">
         <button class="btn" data-dismiss="modal" aria-hidden="true">No</button>
         <button id="yesNoDialogYesButton" class="btn">Yes</button>
+    </div>
+</div>
+
+<!-- Modify Model -->
+<div id="modifyModal" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="modifyModelLabel"
+     aria-hidden="true">
+    <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
+        <h3 id="modifyModelLabel">Modify and release message</h3>
+    </div>
+    <div class="modal-body">
+        <form>
+            <fieldset>
+                <legend>Override Email Addresses</legend>
+                <label class="checkbox">
+                    <input id="overrideFromCheckbox" type="checkbox"> Override From
+                </label>
+                <label for="overrideFromInput">Override From Address</label>
+                <input id="overrideFromInput" type="text" placeholder="user@asdf.com" disabled>
+                <span class="help-block">Example block-level help text here.</span>
+                <label class="checkbox">
+                    <input id="overrideToCheckbox" type="checkbox"> Override To
+                </label>
+                <label for="overrideToInput">Override To Addresses</label>
+                <textarea id="overrideToInput" rows="5" cols="50" disabled>user1@asdf.com user2@asdf.com</textarea>
+                <span class="help-block">Separate multiple addresses with white space or a comma.</span>
+            </fieldset>
+        </form>
+    </div>
+    <div class="modal-footer">
+        <button class="btn" data-dismiss="modal" aria-hidden="true">Cancel</button>
+        <button id="modifyDialogYesButton" class="btn">Release</button>
     </div>
 </div>
 
