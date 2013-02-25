@@ -3,7 +3,7 @@
 Mailoverlord is a SMTP mail server targeted for use in testing / QA environments.  Using Mailoverlord,
 an application can be moved from dev, test, qa, production without using test email addresses,
 or flags to disable the sending of email.  Just configure Mailoverlord as your application's SMTP server,
-and it will receive the emails, but instead of actually deliver them, it will store them into a database.  The emails
+and it will receive the emails, but instead of actually delivering them, it will store them in a database.  The emails
  can later be released to their original recipients, or released to a different email address(es).  This can enable
  the testers to view what your production users would have received.
 
