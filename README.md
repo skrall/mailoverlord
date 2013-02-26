@@ -1,4 +1,4 @@
-# Mailoverlord
+# Mailoverlord [![Build Status](https://travis-ci.org/skrall/mailoverlord.png?branch=master)](https://travis-ci.org/skrall/mailoverlord)
 
 Mailoverlord is a SMTP mail server targeted for use in testing / QA environments.  Using Mailoverlord,
 an application can be moved from dev, test, qa, production without using test email addresses,
