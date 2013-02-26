@@ -1,0 +1,4 @@
+language: java
+script: mvn -Preports clean site
+jdk:
+  - oraclejdk7
