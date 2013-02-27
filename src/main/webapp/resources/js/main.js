@@ -9,8 +9,10 @@ function getSelectedMessageIds() {
 
 function performDelete() {
     var ids = getSelectedMessageIds();
+    $('#yesNoModel').modal('hide');
     if(ids.length == 0)
         return;
+    displaySpinnerDialog('Deleting messages...');
     var messageDeleteRequest = {messageIds: ids};
     $.ajax({
                url: contextRoot + "messages/delete",
@@ -27,13 +29,14 @@ function performDelete() {
                   console.log("Error...");
               })
         .always(function() {
-                  $('#yesNoModel').modal('hide');
+                  $('#spinnerModel').modal('hide');
               });
 
 }
 
 function performRelease() {
-    $("#yesNoModelBody").html("<img src='" + contextRoot + "resources/img/spinner.gif'>");
+    $('#yesNoModel').modal('hide');
+    displaySpinnerDialog('Releasing messages...');
     var ids = getSelectedMessageIds();
     var messageReleaseRequest = {messageIds: ids};
     $.ajax({
@@ -51,7 +54,7 @@ function performRelease() {
                   console.log("Error...");
               })
         .always(function() {
-                  $('#yesNoModel').modal('hide');
+                  $('#spinnerModel').modal('hide');
                     });
 }
 
@@ -60,6 +63,8 @@ function performModify() {
     var overrideFromAddress = $("#overrideFromInput").val();
     var overrideTo = $("#overrideToCheckbox").is(':checked');
     var overrideToAddresses = $("#overrideToInput").val();
+    $('#modifyModal').modal('hide');
+    displaySpinnerDialog("Releasing messages....");
     var ids = getSelectedMessageIds();
     var messageModifyRequest = { messageIds: ids,
                                  overrideTo: overrideTo,
@@ -81,7 +86,7 @@ function performModify() {
                   console.log("Error...");
               })
         .always(function() {
-                    $('#modifyModal').modal('hide');
+                    $('#spinnerModel').modal('hide');
                 });
 
 }
@@ -94,6 +99,11 @@ function displayYesNoDialog(operation, title, body) {
         operation();
     });
     $("#yesNoModel").modal('show');
+}
+
+function displaySpinnerDialog(title) {
+    $("#spinnerModelLabel").text(title);
+    $("#spinnerModal").modal('show');
 }
 
 $(document).ready(function () {

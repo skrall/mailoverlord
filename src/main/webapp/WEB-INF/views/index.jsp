@@ -188,5 +188,18 @@
     </div>
 </div>
 
+<!-- Spinner Model -->
+<div id="spinnerModal" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="spinnerModelLabel"
+     aria-hidden="true">
+    <div class="modal-header">
+        <h3 id="spinnerModelLabel">...  Replace with title ...</h3>
+    </div>
+    <div class="modal-body">
+        <div class="pagination-centered">
+            <img src="<c:url value='/resources/img/spinner.gif'/>">
+        </div>
+    </div>
+</div>
+
 </body>
 </html>
