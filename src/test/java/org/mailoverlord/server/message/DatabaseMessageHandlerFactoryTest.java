@@ -3,7 +3,7 @@ package org.mailoverlord.server.message;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mailoverlord.server.config.ApplicationConfig;
-import org.mailoverlord.server.config.EmbeddedDataSourceConfig;
+import org.mailoverlord.server.config.DbcpDataSourceConfig;
 import org.mailoverlord.server.config.JpaConfig;
 import org.mailoverlord.server.config.TestMailSessionConfig;
 import org.mailoverlord.server.entities.Message;
@@ -31,7 +31,8 @@ import static org.junit.Assert.assertTrue;
  * Test for Database Message Handler Factory
  */
 @RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes={JpaConfig.class, EmbeddedDataSourceConfig.class, TestMailSessionConfig.class, ApplicationConfig.class})
+@ContextConfiguration(classes={JpaConfig.class, DbcpDataSourceConfig.class, TestMailSessionConfig.class,
+                               ApplicationConfig.class})
 public class DatabaseMessageHandlerFactoryTest {
 
     private static final Logger logger = LoggerFactory.getLogger(DatabaseMessageHandlerFactoryTest.class);

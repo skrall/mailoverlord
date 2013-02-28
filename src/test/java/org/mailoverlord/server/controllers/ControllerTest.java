@@ -4,7 +4,7 @@ import org.codehaus.jackson.map.ObjectMapper;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mailoverlord.server.config.EmbeddedDataSourceConfig;
+import org.mailoverlord.server.config.DbcpDataSourceConfig;
 import org.mailoverlord.server.config.JpaConfig;
 import org.mailoverlord.server.config.TestConfig;
 import org.mailoverlord.server.config.TestMailSessionConfig;
@@ -33,7 +33,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @RunWith(SpringJUnit4ClassRunner.class)
 @WebAppConfiguration
 @ContextConfiguration(
-        classes = {WebConfig.class, EmbeddedDataSourceConfig.class, JpaConfig.class, TestMailSessionConfig.class,
+        classes = {WebConfig.class, DbcpDataSourceConfig.class, JpaConfig.class, TestMailSessionConfig.class,
                    TestConfig.class})
 public class ControllerTest {
 

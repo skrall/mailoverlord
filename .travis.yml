@@ -1,5 +1,8 @@
 language: java
-script: mvn -Preports clean site
+script: mvn -Preports,$DB clean site
 jdk:
   - openjdk7
   - oraclejdk7
+env:
+  - DB=h2
+  - DB=derby

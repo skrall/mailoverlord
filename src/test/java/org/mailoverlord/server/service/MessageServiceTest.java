@@ -4,7 +4,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mailoverlord.server.config.ApplicationConfig;
-import org.mailoverlord.server.config.EmbeddedDataSourceConfig;
+import org.mailoverlord.server.config.DbcpDataSourceConfig;
 import org.mailoverlord.server.config.JpaConfig;
 import org.mailoverlord.server.config.TestMailSessionConfig;
 import org.mailoverlord.server.entities.Message;
@@ -32,7 +32,7 @@ import static org.junit.Assert.assertEquals;
  * MessageService Test.
  */
 @RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {JpaConfig.class, EmbeddedDataSourceConfig.class, TestMailSessionConfig.class,
+@ContextConfiguration(classes = {JpaConfig.class, DbcpDataSourceConfig.class, TestMailSessionConfig.class,
                                  ApplicationConfig.class})
 public class MessageServiceTest {
 
