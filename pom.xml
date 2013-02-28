@@ -367,4 +367,16 @@
             </build>
         </profile>
     </profiles>
+    <distributionManagement>
+        <repository>
+            <id>fakerepo</id>
+            <name>Local file system</name>
+            <url>file:///tmp/FakeRepo/repo</url>
+        </repository>
+        <snapshotRepository>
+            <id>fakesnapshotrepo</id>
+            <name>Local file system</name>
+            <url>file:///tmp/FakeRepo/snapshots</url>
+        </snapshotRepository>
+    </distributionManagement>
 </project>
