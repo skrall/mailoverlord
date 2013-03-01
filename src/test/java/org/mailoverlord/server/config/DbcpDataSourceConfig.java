@@ -33,6 +33,7 @@ public class DbcpDataSourceConfig {
         dataSource.setPassword(environment.getProperty("db.password"));
         dataSource.setValidationQuery(environment.getProperty("db.validation.query"));
         dataSource.setTestOnBorrow(environment.getProperty("db.test.on.borrow", Boolean.class));
+        dataSource.setDefaultAutoCommit(false);
 
         logger.info("DataSource: " + dataSource);
         Connection con = null;
