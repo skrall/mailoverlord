@@ -16,7 +16,7 @@ import java.sql.Connection;
  * DBCP DataSource configured by properties file.  Used by continuous integration.
  */
 @Configuration
-@PropertySource("file:src/test/config/ci/${DB}.properties")
+@PropertySource("file:src/test/config/ci/${DB:h2}.properties")
 public class DbcpDataSourceConfig {
 
     private static final Logger logger = LoggerFactory.getLogger(DbcpDataSourceConfig.class);
