@@ -1,5 +1,5 @@
 language: java
-script: mvn -Preports,$DB clean site
+script: mvn -P$DB test
 jdk:
   - openjdk7
   - oraclejdk7
@@ -9,6 +9,6 @@ env:
   - DB=postgres
   - DB=mysql
 before_script:
-  - sh -c "if [ '$DB' = 'pgsql' ]; then psql -c 'DROP DATABASE IF EXISTS overlord;' -U postgres; fi"
-  - sh -c "if [ '$DB' = 'pgsql' ]; then psql -c 'create database overlord;' -U postgres; fi"
+  - sh -c "if [ '$DB' = 'postgres' ]; then psql -c 'DROP DATABASE IF EXISTS overlord;' -U postgres; fi"
+  - sh -c "if [ '$DB' = 'postgres' ]; then psql -c 'create database overlord;' -U postgres; fi"
   - sh -c "if [ '$DB' = 'mysql' ]; then mysql -e 'create database IF NOT EXISTS overlord'; fi"
