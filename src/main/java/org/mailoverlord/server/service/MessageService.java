@@ -8,7 +8,7 @@ import org.mailoverlord.server.model.MessageReleaseRequest;
  */
 public interface MessageService {
 
-    public void releaseMessage(MessageReleaseRequest request);
-    public void deleteMessage(MessageDeleteRequest request);
+    void releaseMessage(MessageReleaseRequest request);
+    void deleteMessage(MessageDeleteRequest request);
 
 }
