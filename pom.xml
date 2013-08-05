@@ -45,17 +45,17 @@
         <jetty-env-file>${project.basedir}/src/test/config/jetty-env.xml</jetty-env-file>
 
         <spring.version>3.2.3.RELEASE</spring.version>
-        <spring.data.version>1.3.2.RELEASE</spring.data.version>
+        <spring.data.version>1.3.4.RELEASE</spring.data.version>
         <slf4j.version>1.7.5</slf4j.version>
         <logback.version>1.0.13</logback.version>
         <subethamail.version>3.1.7</subethamail.version>
-        <hibernate.version>4.2.2.Final</hibernate.version>
+        <hibernate.version>4.2.3.Final</hibernate.version>
         <commons.io.version>2.4</commons.io.version>
         <commons.dbcp.version>1.4</commons.dbcp.version>
         <servlet.api.version>3.0.1</servlet.api.version>
         <postgresql.version>9.1-901-1.jdbc4</postgresql.version>
         <junit.version>4.11</junit.version>
-        <h2.version>1.3.172</h2.version>
+        <h2.version>1.3.173</h2.version>
         <jackson.version>2.2.2</jackson.version>
         <jstl.version>1.2</jstl.version>
         <mockito.version>1.9.5</mockito.version>
@@ -256,13 +256,13 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-site-plugin</artifactId>
-                        <version>3.2</version>
+                        <version>3.3</version>
                         <configuration>
                             <reportPlugins>
                                 <plugin>
                                     <groupId>org.apache.maven.plugins</groupId>
                                     <artifactId>maven-project-info-reports-plugin</artifactId>
-                                    <version>2.4</version>
+                                    <version>2.7</version>
                                     <!-- simpler configuration without reportSets available for usual cases -->
                                     <reports>
                                         <report>dependencies</report>
