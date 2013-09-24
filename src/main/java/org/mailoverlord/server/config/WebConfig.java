@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.web.PageableArgumentResolver;
+import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 import org.springframework.web.WebApplicationInitializer;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
@@ -36,10 +37,10 @@ public class WebConfig extends WebMvcConfigurerAdapter implements WebApplication
 
     @Override
     public void addArgumentResolvers(List<HandlerMethodArgumentResolver> argumentResolvers) {
-        PageableArgumentResolver resolver = new PageableArgumentResolver();
+        PageableHandlerMethodArgumentResolver resolver = new PageableHandlerMethodArgumentResolver();
         resolver.setFallbackPageable(new PageRequest(1, 10));
 
-        argumentResolvers.add(new ServletWebArgumentResolverAdapter(resolver));
+        argumentResolvers.add(resolver);
     }
 
     @Override
