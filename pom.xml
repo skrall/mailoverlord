@@ -44,8 +44,8 @@
         <jetty-system-properties-file>${project.basedir}/src/test/config/overlord-jetty.properties</jetty-system-properties-file>
         <jetty-env-file>${project.basedir}/src/test/config/jetty-env.xml</jetty-env-file>
 
-        <spring.version>3.2.5.RELEASE</spring.version>
-        <spring.data.version>1.4.2.RELEASE</spring.data.version>
+        <spring.version>4.0.0.RELEASE</spring.version>
+        <spring.data.version>1.4.3.RELEASE</spring.data.version>
         <slf4j.version>1.7.5</slf4j.version>
         <logback.version>1.0.13</logback.version>
         <subethamail.version>3.1.7</subethamail.version>
