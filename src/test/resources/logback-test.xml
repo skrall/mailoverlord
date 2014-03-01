@@ -8,11 +8,11 @@
         </encoder>
     </appender>
 
-    <logger name="org.springframework" level="INFO"/>
-    <logger name="org.hibernate" level="INFO"/>
+    <!--<logger name="org.springframework" level="INFO"/>
+    <logger name="org.hibernate" level="INFO"/>-->
     <logger name="org.subethamail" level="INFO"/>
 
-    <root level="DEBUG">
+    <root level="TRACE">
         <appender-ref ref="STDOUT" />
     </root>
 </configuration>

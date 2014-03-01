@@ -44,8 +44,8 @@
         <jetty-system-properties-file>${project.basedir}/src/test/config/overlord-jetty.properties</jetty-system-properties-file>
         <jetty-env-file>${project.basedir}/src/test/config/jetty-env.xml</jetty-env-file>
 
-        <spring.version>4.0.1.RELEASE</spring.version>
-        <spring.data.version>1.4.3.RELEASE</spring.data.version>
+        <spring.version>4.0.2.RELEASE</spring.version>
+        <spring.data.version>1.5.0.RELEASE</spring.data.version>
         <slf4j.version>1.7.6</slf4j.version>
         <logback.version>1.1.1</logback.version>
         <subethamail.version>3.1.7</subethamail.version>
@@ -95,7 +95,19 @@
             <plugin>
                 <groupId>org.eclipse.jetty</groupId>
                 <artifactId>jetty-maven-plugin</artifactId>
-                <version>9.1.0.v20131115</version>
+                <version>9.1.2.v20140210</version>
+                <dependencies>
+                    <dependency>
+                        <groupId>javax.mail</groupId>
+                        <artifactId>mail</artifactId>
+                        <version>1.4.4</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>javax.activation</groupId>
+                        <artifactId>activation</artifactId>
+                        <version>1.1.1</version>
+                    </dependency>
+                </dependencies>
                 <configuration>
                     <systemPropertiesFile>${jetty-system-properties-file}</systemPropertiesFile>
                     <scanIntervalSeconds>10</scanIntervalSeconds>
@@ -104,6 +116,8 @@
                         <contextPath>/mailoverlord</contextPath>
                         <jettyEnvXml>${jetty-env-file}</jettyEnvXml>
                     </webApp>
+                    <stopPort>7099</stopPort>
+                    <stopKey>overlord</stopKey>
                 </configuration>
             </plugin>
         </plugins>
@@ -157,6 +171,16 @@
             <artifactId>spring-context-support</artifactId>
             <version>${spring.version}</version>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-orm</artifactId>
+            <version>${spring.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-tx</artifactId>
+            <version>${spring.version}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.data</groupId>
