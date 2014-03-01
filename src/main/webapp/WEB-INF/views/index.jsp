@@ -1,6 +1,6 @@
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
-<jsp:useBean id="messageJspData" class="org.mailoverlord.server.model.MessageJspData" scope="request"/>
-<jsp:useBean id="pagination" class="org.mailoverlord.server.model.Pagination" scope="request"/>
+<%--@elvariable id="messageJspData" type="org.mailoverlord.server.model.MessageJspData"--%>
+<%--@elvariable id="pagination" type="org.mailoverlord.server.model.Pagination"--%>
 <!DOCTYPE html>
 <!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
 <!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8"> <![endif]-->
