@@ -6,6 +6,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
+import org.springframework.data.web.config.EnableSpringDataWebSupport;
 import org.springframework.web.WebApplicationInitializer;
 import org.springframework.web.context.support.AnnotationConfigWebApplicationContext;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
@@ -25,6 +26,7 @@ import java.util.List;
  */
 @Configuration
 @EnableWebMvc
+@EnableSpringDataWebSupport
 @ComponentScan(basePackages = {"org.mailoverlord.server.controllers", "org.mailoverlord.server.service"})
 public class WebConfig extends WebMvcConfigurerAdapter implements WebApplicationInitializer {
 
@@ -34,20 +36,12 @@ public class WebConfig extends WebMvcConfigurerAdapter implements WebApplication
     }
 
     @Override
-    public void addArgumentResolvers(List<HandlerMethodArgumentResolver> argumentResolvers) {
-        PageableHandlerMethodArgumentResolver resolver = new PageableHandlerMethodArgumentResolver();
-        resolver.setFallbackPageable(new PageRequest(1, 10));
-
-        argumentResolvers.add(resolver);
-    }
-
-    @Override
     public void onStartup(ServletContext servletContext) throws ServletException {
         AnnotationConfigWebApplicationContext mvcContext = new AnnotationConfigWebApplicationContext();
         StandardEnvironment environment = new StandardEnvironment();
         environment.setActiveProfiles("production");
         mvcContext.setEnvironment(environment);
-        mvcContext.register(WebConfig.class,  WebMvcConfig.class, JpaConfig.class, JndiDataSourceConfig.class,
+        mvcContext.register(WebConfig.class, JpaConfig.class, JndiDataSourceConfig.class,
                             ApplicationConfig.class, JndiMailSessionConfig.class);
 
         ServletRegistration.Dynamic dispatcher = servletContext.addServlet(

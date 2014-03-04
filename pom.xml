@@ -49,7 +49,7 @@
         <slf4j.version>1.7.6</slf4j.version>
         <logback.version>1.1.1</logback.version>
         <subethamail.version>3.1.7</subethamail.version>
-        <hibernate.version>4.3.1.Final</hibernate.version>
+        <hibernate.version>4.3.3.Final</hibernate.version>
         <commons.io.version>2.4</commons.io.version>
         <commons.dbcp.version>1.4</commons.dbcp.version>
         <servlet.api.version>3.0.1</servlet.api.version>
