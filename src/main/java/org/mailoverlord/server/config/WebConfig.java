@@ -3,8 +3,10 @@ package org.mailoverlord.server.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.rest.webmvc.config.RepositoryRestMvcConfiguration;
 import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 import org.springframework.data.web.config.EnableSpringDataWebSupport;
 import org.springframework.web.WebApplicationInitializer;
@@ -27,6 +29,7 @@ import java.util.List;
 @Configuration
 @EnableWebMvc
 @EnableSpringDataWebSupport
+@Import(RepositoryRestMvcConfiguration.class)
 @ComponentScan(basePackages = {"org.mailoverlord.server.controllers", "org.mailoverlord.server.service"})
 public class WebConfig extends WebMvcConfigurerAdapter implements WebApplicationInitializer {
 
