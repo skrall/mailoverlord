@@ -22,3 +22,4 @@ and it will receive the emails, but instead of actually delivering them, it will
 
 You should configure your application to send it's emails to the Mailoverlord SMTP server.  The settings would be the
  hostname where the servlet container is running, the port is 2025.
+
