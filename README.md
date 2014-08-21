@@ -1,4 +1,4 @@
-# Mailoverlord [![Build Status](https://travis-ci.org/skrall/mailoverlord.png?branch=master)](https://travis-ci.org/skrall/mailoverlord)
+# Mailoverlord [![Build Status](https://travis-ci.org/skrall/mailoverlord.png?branch=master)](https://travis-ci.org/skrall/mailoverlord) [ ![Codeship Status for skrall/mailoverlord](https://www.codeship.io/projects/eceee630-0b97-0132-82a9-6695a14f90f5/status)](https://www.codeship.io/projects/32032)
 
 Mailoverlord is a SMTP mail server targeted for use in testing / QA environments.  Using Mailoverlord,
 an application can be moved from dev, test, qa, production without using test email addresses,
