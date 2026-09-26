@@ -12,6 +12,7 @@ import org.subethamail.smtp.MessageContext;
 import org.subethamail.smtp.MessageHandler;
 import org.subethamail.smtp.MessageHandlerFactory;
 import org.subethamail.smtp.RejectException;
+import org.subethamail.smtp.TooMuchDataException;
 
 /**
  * Message handler that will store messages in database.
@@ -54,11 +55,12 @@ public class DatabaseMessageHandlerFactory implements MessageHandlerFactory {
         }
 
         @Override
-        public void data(InputStream data) throws RejectException, IOException {
+        public String data(InputStream data) throws RejectException, TooMuchDataException, IOException {
             logger.debug("Got Data....");
             byte[] dataArray = data.readAllBytes();
             logger.debug("Data: {}", new String(dataArray, StandardCharsets.UTF_8));
             message.setData(dataArray);
+            return null;
         }
 
         @Override

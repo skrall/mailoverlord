@@ -50,8 +50,7 @@
     <properties>
         <java.version>25</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <subethamail.version>3.1.7</subethamail.version>
-        <javax.mail.version>1.6.2</javax.mail.version>
+        <subethamail.version>7.2.2</subethamail.version>
     </properties>
 
     <dependencies>
@@ -77,30 +76,13 @@
         </dependency>
 
         <!--
-            The embedded SMTP server. Its MAIL FROM handling validates the sender address
-            with javax.mail's AddressException, so that API is genuinely needed at runtime.
-            subethasmtp asks for javax.mail 1.4.4, so upgrade it to the final javax.mail
-            release (1.6.2). This coexists with jakarta.mail because the packages differ.
+            The embedded SMTP server. Since 7.x it speaks Jakarta Mail, which
+            spring-boot-starter-mail already provides, so no javax.mail shim is needed.
         -->
         <dependency>
-            <groupId>org.subethamail</groupId>
+            <groupId>com.github.davidmoten</groupId>
             <artifactId>subethasmtp</artifactId>
             <version>${subethamail.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>javax.mail</groupId>
-                    <artifactId>mail</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>javax.activation</groupId>
-                    <artifactId>activation</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>com.sun.mail</groupId>
-            <artifactId>javax.mail</artifactId>
-            <version>${javax.mail.version}</version>
         </dependency>
 
         <dependency>

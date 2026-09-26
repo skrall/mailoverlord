@@ -21,9 +21,9 @@ public class SmtpConfig {
 
     @Bean(initMethod = "start", destroyMethod = "stop")
     SMTPServer smtpServer(DatabaseMessageHandlerFactory messageHandlerFactory, SmtpProperties properties) {
-        SMTPServer server = new SMTPServer(messageHandlerFactory);
-        server.setDisableReceivedHeaders(properties.disableReceivedHeaders());
-        server.setPort(properties.port());
-        return server;
+        return SMTPServer.port(properties.port())
+                .messageHandlerFactory(messageHandlerFactory)
+                .insertReceivedHeaders(!properties.disableReceivedHeaders())
+                .build();
     }
 }
