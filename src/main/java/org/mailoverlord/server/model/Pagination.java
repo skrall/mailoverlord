@@ -31,8 +31,8 @@ public class Pagination {
     }
 
     private void init() {
-        isFirstPage = page.isFirstPage();
-        isLastPage = page.isLastPage();
+        isFirstPage = page.isFirst();
+        isLastPage = page.isLast();
         currentPageNumber = page.getNumber() + 1;
         totalPages = page.getTotalPages();
 

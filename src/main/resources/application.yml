@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: mailoverlord
+
+  # Captured mail is valuable during a test run, so never drop the schema out from
+  # under it. Hibernate adds any missing tables and columns on startup.
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    open-in-view: false
+
+  datasource:
+    url: jdbc:h2:file:./data/mailoverlord;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: ""
+    driver-class-name: org.h2.Driver
+
+  # Where released messages get sent. This defaults to the usual SMTP port on localhost.
+  # Set the port to 2025 to send released mail back to mailoverlord's own listener and
+  # re-capture it, which is handy for testing a release.
+  mail:
+    host: localhost
+    port: 25
+
+# The SMTP server mailoverlord listens on to collect incoming mail.
+mailoverlord:
+  smtp:
+    port: 2025
+
+logging:
+  level:
+    org.mailoverlord: INFO

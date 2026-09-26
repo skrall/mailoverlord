@@ -1,114 +1,102 @@
 package org.mailoverlord.server.service;
 
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mailoverlord.server.config.ApplicationConfig;
-import org.mailoverlord.server.config.DbcpDataSourceConfig;
-import org.mailoverlord.server.config.JpaConfig;
-import org.mailoverlord.server.config.TestMailSessionConfig;
-import org.mailoverlord.server.entities.Message;
-import org.mailoverlord.server.model.MessageReleaseRequest;
-import org.mailoverlord.server.repositories.MessageRepository;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.test.context.ContextConfiguration;
-import org.springframework.test.context.junit4.SpringJUnit4ClassRunner;
+import static org.assertj.core.api.Assertions.assertThat;
 
-import javax.mail.BodyPart;
-import javax.mail.Multipart;
-import javax.mail.Session;
-import javax.mail.Transport;
-import javax.mail.internet.InternetAddress;
-import javax.mail.internet.MimeBodyPart;
-import javax.mail.internet.MimeMessage;
-import javax.mail.internet.MimeMultipart;
 import java.util.List;
 
-import static org.junit.Assert.assertEquals;
+import jakarta.mail.BodyPart;
+import jakarta.mail.MessagingException;
+import jakarta.mail.Multipart;
+import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeBodyPart;
+import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.internet.MimeMultipart;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mailoverlord.server.AbstractMailoverlordIntegrationTest;
+import org.mailoverlord.server.entities.Message;
+import org.mailoverlord.server.model.MessageDeleteRequest;
+import org.mailoverlord.server.model.MessageReleaseRequest;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * MessageService Test.
+ *
+ * <p>Releasing a message sends it back out through the configured SMTP server. In tests
+ * that server is mailoverlord itself, so a released message is re-captured, which is
+ * exactly what lets these tests assert on the result.
  */
-@RunWith(SpringJUnit4ClassRunner.class)
-@ContextConfiguration(classes = {JpaConfig.class, DbcpDataSourceConfig.class, TestMailSessionConfig.class,
-                                 ApplicationConfig.class})
-public class MessageServiceTest {
+class MessageServiceTest extends AbstractMailoverlordIntegrationTest {
 
-    private static final Logger logger = LoggerFactory.getLogger(MessageServiceTest.class);
+    private static final String FROM = "messageservicetest@email.com";
 
     @Autowired
     MessageService messageService;
 
-    @Autowired
-    MessageRepository messageRepository;
+    @BeforeEach
+    void sendMessageToCapture() throws MessagingException {
+        MimeMessage mimeMessage = mailSender.createMimeMessage();
+        mimeMessage.setFrom(new InternetAddress(FROM));
+        mimeMessage.addRecipients(jakarta.mail.Message.RecipientType.TO, "to@email.com");
+        mimeMessage.addRecipients(jakarta.mail.Message.RecipientType.CC, "cc@email.com");
+        mimeMessage.addRecipients(jakarta.mail.Message.RecipientType.BCC, "bcc@email.com");
 
-    @Autowired
-    Session session;
+        mimeMessage.setSubject("This is a test message");
 
-    @Before
-    public void setup() {
-        try {
-            MimeMessage mimeMessage = new MimeMessage(session);
-            mimeMessage.setFrom(new InternetAddress("messageservicetest@email.com"));
-            mimeMessage.addRecipients(javax.mail.Message.RecipientType.TO, "to@email.com");
-            mimeMessage.addRecipients(javax.mail.Message.RecipientType.CC,  "cc@email.com");
-            mimeMessage.addRecipients(javax.mail.Message.RecipientType.BCC, "bcc@email.com");
+        Multipart multipart = new MimeMultipart();
 
-            mimeMessage.setSubject("This is a test message");
+        BodyPart textPart = new MimeBodyPart();
+        textPart.setText("This is the text message body...");
 
-            Multipart multipart = new MimeMultipart();
+        BodyPart htmlPart = new MimeBodyPart();
+        htmlPart.setContent("<HTML><BODY><H4>Large Html</H4></BODY></HTML>", "text/html");
 
-            BodyPart textPart = new MimeBodyPart();
-            textPart.setText("This is the text message body...");
+        multipart.addBodyPart(textPart);
+        multipart.addBodyPart(htmlPart);
 
-            BodyPart htmlPart = new MimeBodyPart();
-            htmlPart.setContent("<HTML><BODY><H4>Large Html</H4></BODY></HTML>", "text/html");
+        mimeMessage.setContent(multipart);
 
-            multipart.addBodyPart(textPart);
-            multipart.addBodyPart(htmlPart);
-
-            mimeMessage.setContent(multipart);
-
-            Transport.send(mimeMessage);
-        } catch (Throwable t) {
-            logger.error("Error while sending message.", t);
-            throw new RuntimeException(t);
-        }
+        mailSender.send(mimeMessage);
     }
 
     @Test
-    public void testForwardNoOverride() {
-        Iterable<Message> messages = messageRepository.findAll();
-        if(messages.iterator().hasNext()) {
-            Message message = messages.iterator().next();
-            MessageReleaseRequest request = new MessageReleaseRequest();
-            request.addMessageId(message.getId());
-            messageService.releaseMessage(request);
+    void releaseWithoutOverrideKeepsAddresses() {
+        List<Message> captured = messageRepository.findByFrom(FROM);
+        assertThat(captured).as("captured messages").hasSize(1);
 
-            List<Message> insertedMessages = messageRepository.findByFrom("messageservicetest@email.com");
-            assertEquals("Number of messages not what is expected", 2, insertedMessages.size());
-            // TODO - Assert the results are what are expected.
-        }
+        MessageReleaseRequest request = new MessageReleaseRequest();
+        request.addMessageId(captured.getFirst().getId());
+        messageService.releaseMessage(request);
+
+        assertThat(messageRepository.findByFrom(FROM)).as("re-captured messages").hasSize(2);
     }
 
     @Test
-    public void testFowardWithOverride() {
-        Iterable<Message> messages = messageRepository.findAll();
-        if(messages.iterator().hasNext()) {
-            Message message = messages.iterator().next();
-            MessageReleaseRequest request = new MessageReleaseRequest();
-            request.addMessageId(message.getId());
-            request.setOverrideFrom(true);
-            request.setOverrideFromAddress("override@override.com");
-            request.setOverrideTo(true);
-            request.setOverrideToAddresses("override@override.com");
-            messageService.releaseMessage(request);
+    void releaseWithOverrideReplacesAddresses() {
+        List<Message> captured = messageRepository.findByFrom(FROM);
+        assertThat(captured).as("captured messages").hasSize(1);
 
-            List<Message> insertedMessages = messageRepository.findByFrom("override@override.com");
-            assertEquals("Number of messages not what is expected", 1, insertedMessages.size());
-            // TODO - Assert the results are what are expected.
-        }
+        MessageReleaseRequest request = new MessageReleaseRequest();
+        request.addMessageId(captured.getFirst().getId());
+        request.setOverrideFrom(true);
+        request.setOverrideFromAddress("override@override.com");
+        request.setOverrideTo(true);
+        request.setOverrideToAddresses("override@override.com");
+        messageService.releaseMessage(request);
+
+        assertThat(messageRepository.findByFrom(FROM)).as("original messages left alone").hasSize(1);
+        assertThat(messageRepository.findByFrom("override@override.com")).as("overridden messages").hasSize(1);
+    }
+
+    @Test
+    void deleteRemovesCapturedMessages() {
+        List<Message> captured = messageRepository.findByFrom(FROM);
+        assertThat(captured).as("captured messages").hasSize(1);
+
+        MessageDeleteRequest request = new MessageDeleteRequest();
+        request.addMessageId(captured.getFirst().getId());
+        messageService.deleteMessage(request);
+
+        assertThat(messageRepository.findByFrom(FROM)).as("remaining messages").isEmpty();
     }
 }

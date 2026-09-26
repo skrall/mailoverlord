@@ -1,28 +1,22 @@
-<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
-<%--@elvariable id="messageJspData" type="org.mailoverlord.server.model.MessageJspData"--%>
-<%--@elvariable id="pagination" type="org.mailoverlord.server.model.Pagination"--%>
 <!DOCTYPE html>
-<!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
-<!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8"> <![endif]-->
-<!--[if IE 8]>         <html class="no-js lt-ie9"> <![endif]-->
-<!--[if gt IE 8]><!--> <html class="no-js"> <!--<![endif]-->
+<!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7" xmlns:th="http://www.thymeleaf.org"> <![endif]-->
+<!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8" xmlns:th="http://www.thymeleaf.org"> <![endif]-->
+<!--[if IE 8]>         <html class="no-js lt-ie9" xmlns:th="http://www.thymeleaf.org"> <![endif]-->
+<!--[if gt IE 8]><!--> <html class="no-js" xmlns:th="http://www.thymeleaf.org"> <!--<![endif]-->
 <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
-    <title></title>
+    <title>Mail Overlord</title>
     <meta name="description" content="">
     <meta name="viewport" content="width=device-width">
 
-    <link rel="stylesheet" href="<c:url value='/resources/css/bootstrap.min.css'/>">
-    <link rel="stylesheet" href="<c:url value='/resources/css/bootstrap-responsive.min.css'/>">
-    <link rel="stylesheet" href="<c:url value='/resources/css/main.css'/>">
+    <link rel="stylesheet" th:href="@{/css/bootstrap.min.css}">
+    <link rel="stylesheet" th:href="@{/css/bootstrap-responsive.min.css}">
+    <link rel="stylesheet" th:href="@{/css/main.css}">
 
-    <script src="<c:url value='/resources/js/vendor/modernizr-2.6.2-respond-1.1.0.min.js'/>"></script>
-    <script type="text/javascript">
-        contextRoot = <c:url value='/'/>;
-    </script>
+    <script th:src="@{/js/vendor/modernizr-2.6.2-respond-1.1.0.min.js}"></script>
 </head>
-<body>
+<body th:attr="data-context-root=@{/}">
 <!--[if lt IE 7]>
 <p class="chromeframe">You are using an <strong>outdated</strong> browser. Please <a href="http://browsehappy.com/">upgrade your browser</a> or <a href="http://www.google.com/chromeframe/?redirect=true">activate Google Chrome Frame</a> to improve your experience.</p>
 <![endif]-->
@@ -44,7 +38,7 @@
 
 <div class="container">
 
-    <!-- Main hero unit for a primary marketing messageIds or call to action -->
+    <!-- Main hero unit for a primary marketing message or call to action -->
     <div class="hero-unit">
         <table class="table">
             <thead>
@@ -56,16 +50,14 @@
             </tr>
             </thead>
             <tbody>
-                <c:forEach var="message" items="${messageJspData.page.content}">
-                <tr>
-                    <td>${message.from}</td>
-                    <td>
-                        <div class="from">${message.to}</div>
-                    </td>
-                    <td>${message.receivedTimestamp}</td>
-                    <td><input type="checkbox" name="messageCheckBox" value="${message.id}"/></td>
-                </tr>
-                </c:forEach>
+            <tr th:each="message : ${messageViewData.page.content}">
+                <td th:text="${message.from}">from@example.com</td>
+                <td>
+                    <div class="from" th:text="${message.to}">to@example.com</div>
+                </td>
+                <td th:text="${#temporals.format(message.receivedTimestamp, 'yyyy-MM-dd HH:mm:ss')}">2026-01-01 00:00:00</td>
+                <td><input type="checkbox" name="messageCheckBox" th:value="${message.id}"/></td>
+            </tr>
             </tbody>
             <tfoot>
             <tr>
@@ -74,8 +66,7 @@
                         <button id="releaseButton" class="btn btn-small" data-toggle="tooltip"
                                 title="Release email as is, without changing to or from address.">Release</button>
                         <button id="modifyButton" class="btn btn-small btn-info" data-toggle="tooltip"
-                                title="Release the email with a chance to change to the to and or from address">Modif
-                            y</button>
+                                title="Release the email with a chance to change to the to and or from address">Modify</button>
                         <button id="deleteButton" class="btn btn-small btn-danger" data-toggle="tool-tip"
                                 title="Delete the message permanently.">Delete</button>
                     </div>
@@ -85,33 +76,25 @@
         </table>
         <div class="pagination pagination-right">
             <ul>
-                <c:choose>
-                    <c:when test="${pagination.displayPreviousPageLink}">
-                        <li><a href="<c:url value='/?page.page=${pagination.previousPageLinkNumber}'/>">Prev</a></li>
-                    </c:when>
-                    <c:otherwise>
-                        <li class="disabled"><a href="#">Prev</a></li>
-                    </c:otherwise>
-                </c:choose>
-                <c:forEach begin="${pagination.startPageNumber}" end="${pagination.endPageNumber}" step="1"
-                           var="index">
-                    <c:choose>
-                        <c:when test="${pagination.currentPageNumber == index}">
-                            <li class="disabled"><a href="#">${index}</a></li>
-                        </c:when>
-                        <c:otherwise>
-                            <li><a href="<c:url value='/?page.page=${index}'/>">${index}</a></li>
-                        </c:otherwise>
-                    </c:choose>
-                </c:forEach>
-                <c:choose>
-                    <c:when test="${pagination.displayNextPageLink}">
-                        <li><a href="<c:url value='/?page.page=${pagination.nextPageLinkNumber}'/>">Next</a></li>
-                    </c:when>
-                    <c:otherwise>
-                        <li class="disabled"><a href="#">Next</a></li>
-                    </c:otherwise>
-                </c:choose>
+                <li th:if="${pagination.displayPreviousPageLink}">
+                    <a th:href="@{/(page=${pagination.previousPageLinkNumber - 1})}">Prev</a>
+                </li>
+                <li th:unless="${pagination.displayPreviousPageLink}" class="disabled">
+                    <a href="#">Prev</a>
+                </li>
+                <li th:if="${pagination.totalPages > 0}"
+                    th:each="index : ${#numbers.sequence(pagination.startPageNumber, pagination.endPageNumber)}"
+                    th:class="${pagination.currentPageNumber == index} ? 'disabled' : ''">
+                    <a th:if="${pagination.currentPageNumber == index}" href="#" th:text="${index}">1</a>
+                    <a th:unless="${pagination.currentPageNumber == index}"
+                       th:href="@{/(page=${index - 1})}" th:text="${index}">1</a>
+                </li>
+                <li th:if="${pagination.displayNextPageLink}">
+                    <a th:href="@{/(page=${pagination.nextPageLinkNumber - 1})}">Next</a>
+                </li>
+                <li th:unless="${pagination.displayNextPageLink}" class="disabled">
+                    <a href="#">Next</a>
+                </li>
             </ul>
         </div>
     </div>
@@ -124,21 +107,12 @@
 
 <script src="//ajax.googleapis.com/ajax/libs/jquery/1.9.1/jquery.min.js"></script>
 <script>window.jQuery ||
-        document.write('<script src="<c:url value='/resources/js/vendor/jquery-1.9.1.min.js'/>"><\/script>')</script>
+    document.write('<script th:src="@{/js/vendor/jquery-1.9.1.min.js}"><\/script>')</script>
 
-<script src="<c:url value='/resources/js/vendor/bootstrap.min.js'/>"></script>
+<script th:src="@{/js/vendor/bootstrap.min.js}"></script>
 
-<script src="<c:url value='/resources/js/plugins.js'/>"></script>
-<script src="<c:url value='/resources/js/main.js'/>"></script>
-
-<%--
-<script>
-    var _gaq=[['_setAccount','UA-XXXXX-X'],['_trackPageview']];
-    (function(d,t){var g=d.createElement(t),s=d.getElementsByTagName(t)[0];
-        g.src=('https:'==location.protocol?'//ssl':'//www')+'.google-analytics.com/ga.js';
-        s.parentNode.insertBefore(g,s)}(document,'script'));
-</script>
---%>
+<script th:src="@{/js/plugins.js}"></script>
+<script th:src="@{/js/main.js}"></script>
 
 <!-- Yes / No Modal -->
 <div id="yesNoModel" class="modal hide fade" tabindex="-1" role="dialog" aria-labelledby="yesNoModelLabel"
@@ -196,7 +170,7 @@
     </div>
     <div class="modal-body">
         <div class="pagination-centered">
-            <img src="<c:url value='/resources/img/spinner.gif'/>">
+            <img th:src="@{/img/spinner.gif}" alt="Working...">
         </div>
     </div>
 </div>

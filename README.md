@@ -1,25 +1,99 @@
-# Mailoverlord [![Build Status](https://travis-ci.org/skrall/mailoverlord.png?branch=master)](https://travis-ci.org/skrall/mailoverlord) [ ![Codeship Status for skrall/mailoverlord](https://www.codeship.io/projects/eceee630-0b97-0132-82a9-6695a14f90f5/status)](https://www.codeship.io/projects/32032)
+# Mailoverlord
 
-Mailoverlord is a SMTP mail server targeted for use in testing / QA environments.  Using Mailoverlord,
-an application can be moved from dev, test, qa, production without using test email addresses,
-or flags to disable the sending of email.  Just configure Mailoverlord as your application's SMTP server,
-and it will receive the emails, but instead of actually delivering them, it will store them in a database.  The emails
- can later be released to their original recipients, or released to a different email address(es).  This can enable
- the testers to view what your production users would have received.
+Mailoverlord is an SMTP mail server targeted at testing and QA environments. Point an
+application at it as its SMTP server and it will receive mail without ever delivering it,
+storing each message in a database instead. The messages can be browsed in a web UI and
+later released to their original recipients, or to different addresses, so testers can see
+exactly what real users would have received.
 
-### Requirements
+## Requirements
 
-* Java 7
-* A Sql Datastore - Postgres, Mysql, Oracle, any database Hibernate supports.
-* Servlet Container - Tomcat, Jetty.  It should also run fine on application servers Glassfish, JBoss etc.
-* SMTP Server - to release the emails to.  If you aren't going to release emails - this isn't required.
+* Java 25
+* Maven 3.9+ (or use the pinned toolchain via [mise](https://mise.jdx.dev/): `mise install`)
 
-### Installation
+That's it. Mailoverlord is a self-contained executable JAR with an embedded Tomcat, so
+there is no servlet container, application server, or JNDI to set up. Captured mail is
+stored in an embedded H2 database under `./data`.
 
-1. Configure the servlet container's JNDI data source.  The datasource should named jdbc/overlord-datasource
-2. Configure the servlet containers JNDI Session to send released emails to.  It should be named mail/overlord-mail
-3. Install the mailoverlord.war
+An SMTP server to release to is only needed if you actually release messages.
 
-You should configure your application to send it's emails to the Mailoverlord SMTP server.  The settings would be the
- hostname where the servlet container is running, the port is 2025.
+## Build
 
+```bash
+mvn clean package
+```
+
+This produces `target/mailoverlord-2.0.0-SNAPSHOT.jar`.
+
+## Run
+
+```bash
+java -jar target/mailoverlord-2.0.0-SNAPSHOT.jar
+```
+
+Mailoverlord then listens for SMTP on port `2025` and serves its web UI on
+[http://localhost:8080](http://localhost:8080).
+
+Configure your application to send its email to the Mailoverlord host, port `2025`.
+
+## Configuration
+
+Everything is set in `src/main/resources/application.yml`, and every value can be
+overridden with the usual Spring Boot mechanisms, for example:
+
+```bash
+java -jar target/mailoverlord-2.0.0-SNAPSHOT.jar \
+  --server.port=8080 \
+  --mailoverlord.smtp.port=2525
+```
+
+| Property | Default | Description |
+| --- | --- | --- |
+| `mailoverlord.smtp.port` | `2025` | Port the embedded SMTP server listens on to collect incoming mail |
+| `spring.mail.host` | `localhost` | Host released messages are sent to |
+| `spring.mail.port` | `25` | Port released messages are sent to |
+| `server.port` | `8080` | Web UI and API port |
+| `spring.datasource.url` | `jdbc:h2:file:./data/mailoverlord` | Message store |
+
+To send released mail back to Mailoverlord itself, set `--spring.mail.port=2025`; the
+released messages are then re-captured and show up in the UI again.
+
+To point Mailoverlord at a different database, override the datasource. The H2 defaults
+are deliberately low-friction, but any database Hibernate supports will work.
+
+## Web UI
+
+* `/` lists captured messages, newest first, 20 to a page. Page with the standard
+  Spring Data parameters, e.g. `/?size=50&page=2` (0-based) or `/?sort=from,asc`.
+
+## API
+
+* `GET /messages/list` — captured messages as JSON. Accepts the same paging and sorting
+  parameters as the UI.
+* `POST /messages/delete` — delete messages, body `{"messageIds": [1, 2]}`.
+* `POST /messages/release` — release messages. All fields are optional; with only
+  `messageIds` the original addresses are used.
+  * `overrideTo` / `overrideToAddresses` — replace the `To` recipients (comma separated).
+  * `overrideFrom` / `overrideFromAddress` — replace the `From` address.
+* `GET /message` and `GET /message/{id}` — the same messages as a Spring Data REST
+  resource, including HAL navigation and paging.
+
+Releasing mail that Mailoverlord cannot reach returns HTTP 200 with
+`{"successful": false, "errorMessage": "..."}` and leaves the messages captured, so you
+can fix the target and try again.
+
+## Notes on this version
+
+* Timestamps are ISO-8601 (`Instant`) rather than epoch milliseconds.
+* The UI is Thymeleaf; there is no `src/main/webapp` and no JSP.
+* `receivedTimestamp` and `remoteAddress` are stored as `TIMESTAMP` and `VARCHAR`.
+  An existing database from 1.x will need those columns migrated.
+
+## Tests
+
+```bash
+mvn test
+```
+
+Tests bind the SMTP port for real, so they cannot run two at a time or while the packaged
+application is already running.

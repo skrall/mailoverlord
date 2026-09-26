@@ -1,16 +1,11 @@
 package org.mailoverlord.server.entities;
 
-import javax.persistence.Basic;
-import javax.persistence.Column;
-import javax.persistence.Entity;
-import javax.persistence.FetchType;
-import javax.persistence.GeneratedValue;
-import javax.persistence.Id;
-import javax.persistence.Lob;
-import javax.persistence.PrePersist;
-import javax.persistence.Temporal;
-import javax.persistence.TemporalType;
-import java.util.Date;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.Id;
+import jakarta.persistence.PrePersist;
+import java.time.Instant;
 
 /**
  * Message entity.
@@ -18,11 +13,18 @@ import java.util.Date;
 @Entity
 public class Message {
 
+    private static final int MAX_ADDRESS_LENGTH = 4000;
+
+    /**
+     * 10 MB, which comfortably covers the default SMTP size limit of most mail servers.
+     */
+    private static final int MAX_DATA_LENGTH = 10 * 1024 * 1024;
+
     private Long id;
     private String from;
     private String to = "";
     private byte[] data;
-    private Date receivedTimestamp;
+    private Instant receivedTimestamp;
 
     @Id
     @GeneratedValue
@@ -44,8 +46,7 @@ public class Message {
         this.from = from;
     }
 
-    @Column(name = "TO_ADDRESSES")
-    @Lob
+    @Column(name = "TO_ADDRESSES", length = MAX_ADDRESS_LENGTH)
     public String getTo() {
         return to;
     }
@@ -55,15 +56,13 @@ public class Message {
     }
 
     public void appendTo(String to) {
-        if(this.to != null && this.to.length() > 0) {
+        if (this.to != null && !this.to.isEmpty()) {
             this.to += ",";
         }
         this.to += to;
     }
 
-    @Column(name = "DATA")
-    @Basic(fetch = FetchType.LAZY)
-    @Lob
+    @Column(name = "DATA", length = MAX_DATA_LENGTH)
     public byte[] getData() {
         return data;
     }
@@ -73,17 +72,16 @@ public class Message {
     }
 
     @Column(name = "RECEIVED_TIMESTAMP")
-    @Temporal(TemporalType.TIMESTAMP)
-    public Date getReceivedTimestamp() {
+    public Instant getReceivedTimestamp() {
         return receivedTimestamp;
     }
 
-    public void setReceivedTimestamp(Date receivedTimestamp) {
+    public void setReceivedTimestamp(Instant receivedTimestamp) {
         this.receivedTimestamp = receivedTimestamp;
     }
 
     @PrePersist
     private void prePersist() {
-        this.receivedTimestamp = new Date();
+        this.receivedTimestamp = Instant.now();
     }
 }

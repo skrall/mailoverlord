@@ -1,278 +1,204 @@
 package org.mailoverlord.server.model;
 
-import org.junit.Test;
-import org.springframework.data.domain.Page;
+import static org.assertj.core.api.Assertions.assertThat;
 
-import static org.junit.Assert.assertEquals;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.Mockito.mock;
+import java.util.List;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 /**
  * Test for Pagination logic.
  */
-public class PaginationTest {
+class PaginationTest {
 
-    @Test
-    public void testPageOneOfTen() {
-        Page page = mock(Page.class);
-        given(page.getNumber()).willReturn(0);
-        given(page.getTotalPages()).willReturn(10);
-        given(page.isFirstPage()).willReturn(true);
-        given(page.isLastPage()).willReturn(false);
-
-        Pagination pagination = new Pagination(page);
-
-        assertEquals("Page start number does not match", 1, pagination.getStartPageNumber());
-        assertEquals("Page end number does not match", 5, pagination.getEndPageNumber());
-        assertEquals("Selected page does not match", 1, pagination.getCurrentPageNumber());
-        assertEquals("Is First Page does not match", true, pagination.isFirstPage());
-        assertEquals("Is Last Page does not match", false, pagination.isLastPage());
-        assertEquals("Previous Page Link Number does not match", 1, pagination.getPreviousPageLinkNumber());
-        assertEquals("Next Page Link Number does not match", 6, pagination.getNextPageLinkNumber());
-        assertEquals("Is Display Previous Page Link does not match", false, pagination.isDisplayPreviousPageLink());
-        assertEquals("Is Display Next Page Link does not match", true, pagination.isDisplayNextPageLink());
-        assertEquals("Total Pages does not match", 10, pagination.getTotalPages());
+    /**
+     * Builds a page of {@code totalPages} pages, with a page size of one, so that
+     * page numbers line up exactly with the number of pages.
+     */
+    private static Pagination pagination(int pageNumber, int totalPages) {
+        return new Pagination(new PageImpl<>(List.of(), PageRequest.of(pageNumber, 1), totalPages));
     }
 
     @Test
-    public void testPageTwoOfTen() {
-        Page page = mock(Page.class);
-        given(page.getNumber()).willReturn(1);
-        given(page.getTotalPages()).willReturn(10);
-        given(page.isFirstPage()).willReturn(false);
-        given(page.isLastPage()).willReturn(false);
+    void pageOneOfTen() {
+        Pagination pagination = pagination(0, 10);
 
-        Pagination pagination = new Pagination(page);
-
-        assertEquals("Page start number does not match", 1, pagination.getStartPageNumber());
-        assertEquals("Page end number does not match", 5, pagination.getEndPageNumber());
-        assertEquals("Selected page does not match", 2, pagination.getCurrentPageNumber());
-        assertEquals("Is First Page does not match", false, pagination.isFirstPage());
-        assertEquals("Is Last Page does not match", false, pagination.isLastPage());
-        assertEquals("Previous Page Link Number does not match", 1, pagination.getPreviousPageLinkNumber());
-        assertEquals("Next Page Link Number does not match", 6, pagination.getNextPageLinkNumber());
-        assertEquals("Is Display Previous Page Link does not match", false, pagination.isDisplayPreviousPageLink());
-        assertEquals("Is Display Next Page Link does not match", true, pagination.isDisplayNextPageLink());
-        assertEquals("Total Pages does not match", 10, pagination.getTotalPages());
+        assertThat(pagination.getStartPageNumber()).as("start page number").isEqualTo(1);
+        assertThat(pagination.getEndPageNumber()).as("end page number").isEqualTo(5);
+        assertThat(pagination.getCurrentPageNumber()).as("current page number").isEqualTo(1);
+        assertThat(pagination.isFirstPage()).as("is first page").isTrue();
+        assertThat(pagination.isLastPage()).as("is last page").isFalse();
+        assertThat(pagination.getPreviousPageLinkNumber()).as("previous page link number").isEqualTo(1);
+        assertThat(pagination.getNextPageLinkNumber()).as("next page link number").isEqualTo(6);
+        assertThat(pagination.isDisplayPreviousPageLink()).as("display previous page link").isFalse();
+        assertThat(pagination.isDisplayNextPageLink()).as("display next page link").isTrue();
+        assertThat(pagination.getTotalPages()).as("total pages").isEqualTo(10);
     }
 
     @Test
-    public void testPageThreeOfTen() {
-        Page page = mock(Page.class);
-        given(page.getNumber()).willReturn(2);
-        given(page.getTotalPages()).willReturn(10);
-        given(page.isFirstPage()).willReturn(false);
-        given(page.isLastPage()).willReturn(false);
+    void pageTwoOfTen() {
+        Pagination pagination = pagination(1, 10);
 
-        Pagination pagination = new Pagination(page);
-
-        assertEquals("Page start number does not match", 1, pagination.getStartPageNumber());
-        assertEquals("Page end number does not match", 5, pagination.getEndPageNumber());
-        assertEquals("Selected page does not match", 3, pagination.getCurrentPageNumber());
-        assertEquals("Is First Page does not match", false, pagination.isFirstPage());
-        assertEquals("Is Last Page does not match", false, pagination.isLastPage());
-        assertEquals("Previous Page Link Number does not match", 1, pagination.getPreviousPageLinkNumber());
-        assertEquals("Next Page Link Number does not match", 6, pagination.getNextPageLinkNumber());
-        assertEquals("Is Display Previous Page Link does not match", false, pagination.isDisplayPreviousPageLink());
-        assertEquals("Is Display Next Page Link does not match", true, pagination.isDisplayNextPageLink());
-        assertEquals("Total Pages does not match", 10, pagination.getTotalPages());
+        assertThat(pagination.getStartPageNumber()).as("start page number").isEqualTo(1);
+        assertThat(pagination.getEndPageNumber()).as("end page number").isEqualTo(5);
+        assertThat(pagination.getCurrentPageNumber()).as("current page number").isEqualTo(2);
+        assertThat(pagination.isFirstPage()).as("is first page").isFalse();
+        assertThat(pagination.isLastPage()).as("is last page").isFalse();
+        assertThat(pagination.getPreviousPageLinkNumber()).as("previous page link number").isEqualTo(1);
+        assertThat(pagination.getNextPageLinkNumber()).as("next page link number").isEqualTo(6);
+        assertThat(pagination.isDisplayPreviousPageLink()).as("display previous page link").isFalse();
+        assertThat(pagination.isDisplayNextPageLink()).as("display next page link").isTrue();
     }
 
     @Test
-    public void testPageFourOfTen() {
-        Page page = mock(Page.class);
-        given(page.getNumber()).willReturn(3);
-        given(page.getTotalPages()).willReturn(10);
-        given(page.isFirstPage()).willReturn(false);
-        given(page.isLastPage()).willReturn(false);
+    void pageThreeOfTen() {
+        Pagination pagination = pagination(2, 10);
 
-        Pagination pagination = new Pagination(page);
-
-        assertEquals("Page start number does not match", 2, pagination.getStartPageNumber());
-        assertEquals("Page end number does not match", 6, pagination.getEndPageNumber());
-        assertEquals("Selected page does not match", 4, pagination.getCurrentPageNumber());
-        assertEquals("Is First Page does not match", false, pagination.isFirstPage());
-        assertEquals("Is Last Page does not match", false, pagination.isLastPage());
-        assertEquals("Previous Page Link Number does not match", 1, pagination.getPreviousPageLinkNumber());
-        assertEquals("Next Page Link Number does not match", 7, pagination.getNextPageLinkNumber());
-        assertEquals("Is Display Previous Page Link does not match", true, pagination.isDisplayPreviousPageLink());
-        assertEquals("Is Display Next Page Link does not match", true, pagination.isDisplayNextPageLink());
-        assertEquals("Total Pages does not match", 10, pagination.getTotalPages());
+        assertThat(pagination.getStartPageNumber()).as("start page number").isEqualTo(1);
+        assertThat(pagination.getEndPageNumber()).as("end page number").isEqualTo(5);
+        assertThat(pagination.getCurrentPageNumber()).as("current page number").isEqualTo(3);
+        assertThat(pagination.getPreviousPageLinkNumber()).as("previous page link number").isEqualTo(1);
+        assertThat(pagination.getNextPageLinkNumber()).as("next page link number").isEqualTo(6);
+        assertThat(pagination.isDisplayPreviousPageLink()).as("display previous page link").isFalse();
+        assertThat(pagination.isDisplayNextPageLink()).as("display next page link").isTrue();
     }
 
     @Test
-    public void testPageSevenOfTen() {
-        Page page = mock(Page.class);
-        given(page.getNumber()).willReturn(6);
-        given(page.getTotalPages()).willReturn(10);
-        given(page.isFirstPage()).willReturn(false);
-        given(page.isLastPage()).willReturn(false);
+    void pageFourOfTen() {
+        Pagination pagination = pagination(3, 10);
 
-        Pagination pagination = new Pagination(page);
-
-        assertEquals("Page start number does not match", 5, pagination.getStartPageNumber());
-        assertEquals("Page end number does not match", 9, pagination.getEndPageNumber());
-        assertEquals("Selected page does not match", 7, pagination.getCurrentPageNumber());
-        assertEquals("Is First Page does not match", false, pagination.isFirstPage());
-        assertEquals("Is Last Page does not match", false, pagination.isLastPage());
-        assertEquals("Previous Page Link Number does not match", 4, pagination.getPreviousPageLinkNumber());
-        assertEquals("Next Page Link Number does not match", 10, pagination.getNextPageLinkNumber());
-        assertEquals("Is Display Previous Page Link does not match", true, pagination.isDisplayPreviousPageLink());
-        assertEquals("Is Display Next Page Link does not match", true, pagination.isDisplayNextPageLink());
-        assertEquals("Total Pages does not match", 10, pagination.getTotalPages());
+        assertThat(pagination.getStartPageNumber()).as("start page number").isEqualTo(2);
+        assertThat(pagination.getEndPageNumber()).as("end page number").isEqualTo(6);
+        assertThat(pagination.getCurrentPageNumber()).as("current page number").isEqualTo(4);
+        assertThat(pagination.getPreviousPageLinkNumber()).as("previous page link number").isEqualTo(1);
+        assertThat(pagination.getNextPageLinkNumber()).as("next page link number").isEqualTo(7);
+        assertThat(pagination.isDisplayPreviousPageLink()).as("display previous page link").isTrue();
+        assertThat(pagination.isDisplayNextPageLink()).as("display next page link").isTrue();
     }
 
     @Test
-    public void testPageEightOfTen() {
-        Page page = mock(Page.class);
-        given(page.getNumber()).willReturn(7);
-        given(page.getTotalPages()).willReturn(10);
-        given(page.isFirstPage()).willReturn(false);
-        given(page.isLastPage()).willReturn(false);
+    void pageSevenOfTen() {
+        Pagination pagination = pagination(6, 10);
 
-        Pagination pagination = new Pagination(page);
-
-        assertEquals("Page start number does not match", 6, pagination.getStartPageNumber());
-        assertEquals("Page end number does not match", 10, pagination.getEndPageNumber());
-        assertEquals("Selected page does not match", 8, pagination.getCurrentPageNumber());
-        assertEquals("Is First Page does not match", false, pagination.isFirstPage());
-        assertEquals("Is Last Page does not match", false, pagination.isLastPage());
-        assertEquals("Previous Page Link Number does not match", 5, pagination.getPreviousPageLinkNumber());
-        assertEquals("Next Page Link Number does not match", 10, pagination.getNextPageLinkNumber());
-        assertEquals("Is Display Previous Page Link does not match", true, pagination.isDisplayPreviousPageLink());
-        assertEquals("Is Display Next Page Link does not match", false, pagination.isDisplayNextPageLink());
-        assertEquals("Total Pages does not match", 10, pagination.getTotalPages());
+        assertThat(pagination.getStartPageNumber()).as("start page number").isEqualTo(5);
+        assertThat(pagination.getEndPageNumber()).as("end page number").isEqualTo(9);
+        assertThat(pagination.getCurrentPageNumber()).as("current page number").isEqualTo(7);
+        assertThat(pagination.getPreviousPageLinkNumber()).as("previous page link number").isEqualTo(4);
+        assertThat(pagination.getNextPageLinkNumber()).as("next page link number").isEqualTo(10);
+        assertThat(pagination.isDisplayPreviousPageLink()).as("display previous page link").isTrue();
+        assertThat(pagination.isDisplayNextPageLink()).as("display next page link").isTrue();
     }
 
     @Test
-    public void testPageNineOfTen() {
-        Page page = mock(Page.class);
-        given(page.getNumber()).willReturn(8);
-        given(page.getTotalPages()).willReturn(10);
-        given(page.isFirstPage()).willReturn(false);
-        given(page.isLastPage()).willReturn(false);
+    void pageEightOfTen() {
+        Pagination pagination = pagination(7, 10);
 
-        Pagination pagination = new Pagination(page);
-
-        assertEquals("Page start number does not match", 6, pagination.getStartPageNumber());
-        assertEquals("Page end number does not match", 10, pagination.getEndPageNumber());
-        assertEquals("Selected page does not match", 9, pagination.getCurrentPageNumber());
-        assertEquals("Is First Page does not match", false, pagination.isFirstPage());
-        assertEquals("Is Last Page does not match", false, pagination.isLastPage());
-        assertEquals("Previous Page Link Number does not match", 5, pagination.getPreviousPageLinkNumber());
-        assertEquals("Next Page Link Number does not match", 10, pagination.getNextPageLinkNumber());
-        assertEquals("Is Display Previous Page Link does not match", true, pagination.isDisplayPreviousPageLink());
-        assertEquals("Is Display Next Page Link does not match", false, pagination.isDisplayNextPageLink());
-        assertEquals("Total Pages does not match", 10, pagination.getTotalPages());
+        assertThat(pagination.getStartPageNumber()).as("start page number").isEqualTo(6);
+        assertThat(pagination.getEndPageNumber()).as("end page number").isEqualTo(10);
+        assertThat(pagination.getCurrentPageNumber()).as("current page number").isEqualTo(8);
+        assertThat(pagination.getPreviousPageLinkNumber()).as("previous page link number").isEqualTo(5);
+        assertThat(pagination.getNextPageLinkNumber()).as("next page link number").isEqualTo(10);
+        assertThat(pagination.isDisplayPreviousPageLink()).as("display previous page link").isTrue();
+        assertThat(pagination.isDisplayNextPageLink()).as("display next page link").isFalse();
     }
 
     @Test
-    public void testPageTenOfTen() {
-        Page page = mock(Page.class);
-        given(page.getNumber()).willReturn(9);
-        given(page.getTotalPages()).willReturn(10);
-        given(page.isFirstPage()).willReturn(false);
-        given(page.isLastPage()).willReturn(true);
+    void pageNineOfTen() {
+        Pagination pagination = pagination(8, 10);
 
-        Pagination pagination = new Pagination(page);
-
-        assertEquals("Page start number does not match", 6, pagination.getStartPageNumber());
-        assertEquals("Page end number does not match", 10, pagination.getEndPageNumber());
-        assertEquals("Selected page does not match", 10, pagination.getCurrentPageNumber());
-        assertEquals("Is First Page does not match", false, pagination.isFirstPage());
-        assertEquals("Is Last Page does not match", true, pagination.isLastPage());
-        assertEquals("Previous Page Link Number does not match", 5, pagination.getPreviousPageLinkNumber());
-        assertEquals("Next Page Link Number does not match", 10, pagination.getNextPageLinkNumber());
-        assertEquals("Is Display Previous Page Link does not match", true, pagination.isDisplayPreviousPageLink());
-        assertEquals("Is Display Next Page Link does not match", false, pagination.isDisplayNextPageLink());
-        assertEquals("Total Pages does not match", 10, pagination.getTotalPages());
+        assertThat(pagination.getStartPageNumber()).as("start page number").isEqualTo(6);
+        assertThat(pagination.getEndPageNumber()).as("end page number").isEqualTo(10);
+        assertThat(pagination.getCurrentPageNumber()).as("current page number").isEqualTo(9);
+        assertThat(pagination.getPreviousPageLinkNumber()).as("previous page link number").isEqualTo(5);
+        assertThat(pagination.getNextPageLinkNumber()).as("next page link number").isEqualTo(10);
+        assertThat(pagination.isDisplayPreviousPageLink()).as("display previous page link").isTrue();
+        assertThat(pagination.isDisplayNextPageLink()).as("display next page link").isFalse();
     }
 
     @Test
-    public void testPageOneOfOne() {
-        Page page = mock(Page.class);
-        given(page.getNumber()).willReturn(0);
-        given(page.getTotalPages()).willReturn(1);
-        given(page.isFirstPage()).willReturn(true);
-        given(page.isLastPage()).willReturn(true);
+    void lastPageOfTen() {
+        Pagination pagination = pagination(9, 10);
 
-        Pagination pagination = new Pagination(page);
-
-        assertEquals("Page start number does not match", 1, pagination.getStartPageNumber());
-        assertEquals("Page end number does not match", 1, pagination.getEndPageNumber());
-        assertEquals("Selected page does not match", 1, pagination.getCurrentPageNumber());
-        assertEquals("Is First Page does not match", true, pagination.isFirstPage());
-        assertEquals("Is Last Page does not match", true, pagination.isLastPage());
-        assertEquals("Previous Page Link Number does not match", 1, pagination.getPreviousPageLinkNumber());
-        assertEquals("Next Page Link Number does not match", 1, pagination.getNextPageLinkNumber());
-        assertEquals("Is Display Previous Page Link does not match", false, pagination.isDisplayPreviousPageLink());
-        assertEquals("Is Display Next Page Link does not match", false, pagination.isDisplayNextPageLink());
-        assertEquals("Total Pages does not match", 1, pagination.getTotalPages());
+        assertThat(pagination.getStartPageNumber()).as("start page number").isEqualTo(6);
+        assertThat(pagination.getEndPageNumber()).as("end page number").isEqualTo(10);
+        assertThat(pagination.getCurrentPageNumber()).as("current page number").isEqualTo(10);
+        assertThat(pagination.isFirstPage()).as("is first page").isFalse();
+        assertThat(pagination.isLastPage()).as("is last page").isTrue();
+        assertThat(pagination.getPreviousPageLinkNumber()).as("previous page link number").isEqualTo(5);
+        assertThat(pagination.getNextPageLinkNumber()).as("next page link number").isEqualTo(10);
+        assertThat(pagination.isDisplayPreviousPageLink()).as("display previous page link").isTrue();
+        assertThat(pagination.isDisplayNextPageLink()).as("display next page link").isFalse();
     }
 
     @Test
-    public void testPageOneOfTwo() {
-        Page page = mock(Page.class);
-        given(page.getNumber()).willReturn(0);
-        given(page.getTotalPages()).willReturn(2);
-        given(page.isFirstPage()).willReturn(true);
-        given(page.isLastPage()).willReturn(false);
+    void onlyPage() {
+        Pagination pagination = pagination(0, 1);
 
-        Pagination pagination = new Pagination(page);
-
-        assertEquals("Page start number does not match", 1, pagination.getStartPageNumber());
-        assertEquals("Page end number does not match", 2, pagination.getEndPageNumber());
-        assertEquals("Selected page does not match", 1, pagination.getCurrentPageNumber());
-        assertEquals("Is First Page does not match", true, pagination.isFirstPage());
-        assertEquals("Is Last Page does not match", false, pagination.isLastPage());
-        assertEquals("Previous Page Link Number does not match", 1, pagination.getPreviousPageLinkNumber());
-        assertEquals("Next Page Link Number does not match", 2, pagination.getNextPageLinkNumber());
-        assertEquals("Is Display Previous Page Link does not match", false, pagination.isDisplayPreviousPageLink());
-        assertEquals("Is Display Next Page Link does not match", false, pagination.isDisplayNextPageLink());
-        assertEquals("Total Pages does not match", 2, pagination.getTotalPages());
+        assertThat(pagination.getStartPageNumber()).as("start page number").isEqualTo(1);
+        assertThat(pagination.getEndPageNumber()).as("end page number").isEqualTo(1);
+        assertThat(pagination.getCurrentPageNumber()).as("current page number").isEqualTo(1);
+        assertThat(pagination.isFirstPage()).as("is first page").isTrue();
+        assertThat(pagination.isLastPage()).as("is last page").isTrue();
+        assertThat(pagination.getPreviousPageLinkNumber()).as("previous page link number").isEqualTo(1);
+        assertThat(pagination.getNextPageLinkNumber()).as("next page link number").isEqualTo(1);
+        assertThat(pagination.isDisplayPreviousPageLink()).as("display previous page link").isFalse();
+        assertThat(pagination.isDisplayNextPageLink()).as("display next page link").isFalse();
+        assertThat(pagination.getTotalPages()).as("total pages").isEqualTo(1);
     }
 
     @Test
-    public void testPageTwoOfTwo() {
-        Page page = mock(Page.class);
-        given(page.getNumber()).willReturn(1);
-        given(page.getTotalPages()).willReturn(2);
-        given(page.isFirstPage()).willReturn(false);
-        given(page.isLastPage()).willReturn(true);
+    void pageOneOfTwo() {
+        Pagination pagination = pagination(0, 2);
 
-        Pagination pagination = new Pagination(page);
-
-        assertEquals("Page start number does not match", 1, pagination.getStartPageNumber());
-        assertEquals("Page end number does not match", 2, pagination.getEndPageNumber());
-        assertEquals("Selected page does not match", 2, pagination.getCurrentPageNumber());
-        assertEquals("Is First Page does not match", false, pagination.isFirstPage());
-        assertEquals("Is Last Page does not match", true, pagination.isLastPage());
-        assertEquals("Previous Page Link Number does not match", 1, pagination.getPreviousPageLinkNumber());
-        assertEquals("Next Page Link Number does not match", 2, pagination.getNextPageLinkNumber());
-        assertEquals("Is Display Previous Page Link does not match", false, pagination.isDisplayPreviousPageLink());
-        assertEquals("Is Display Next Page Link does not match", false, pagination.isDisplayNextPageLink());
-        assertEquals("Total Pages does not match", 2, pagination.getTotalPages());
+        assertThat(pagination.getStartPageNumber()).as("start page number").isEqualTo(1);
+        assertThat(pagination.getEndPageNumber()).as("end page number").isEqualTo(2);
+        assertThat(pagination.getCurrentPageNumber()).as("current page number").isEqualTo(1);
+        assertThat(pagination.getPreviousPageLinkNumber()).as("previous page link number").isEqualTo(1);
+        assertThat(pagination.getNextPageLinkNumber()).as("next page link number").isEqualTo(2);
+        assertThat(pagination.isDisplayPreviousPageLink()).as("display previous page link").isFalse();
+        assertThat(pagination.isDisplayNextPageLink()).as("display next page link").isFalse();
     }
 
     @Test
-    public void testPageFourOfFour() {
-        Page page = mock(Page.class);
-        given(page.getNumber()).willReturn(3);
-        given(page.getTotalPages()).willReturn(4);
-        given(page.isFirstPage()).willReturn(false);
-        given(page.isLastPage()).willReturn(true);
+    void pageTwoOfTwo() {
+        Pagination pagination = pagination(1, 2);
 
-        Pagination pagination = new Pagination(page);
+        assertThat(pagination.getStartPageNumber()).as("start page number").isEqualTo(1);
+        assertThat(pagination.getEndPageNumber()).as("end page number").isEqualTo(2);
+        assertThat(pagination.getCurrentPageNumber()).as("current page number").isEqualTo(2);
+        assertThat(pagination.getPreviousPageLinkNumber()).as("previous page link number").isEqualTo(1);
+        assertThat(pagination.getNextPageLinkNumber()).as("next page link number").isEqualTo(2);
+        assertThat(pagination.isDisplayPreviousPageLink()).as("display previous page link").isFalse();
+        assertThat(pagination.isDisplayNextPageLink()).as("display next page link").isFalse();
+    }
 
-        assertEquals("Page start number does not match", 1, pagination.getStartPageNumber());
-        assertEquals("Page end number does not match", 4, pagination.getEndPageNumber());
-        assertEquals("Selected page does not match", 4, pagination.getCurrentPageNumber());
-        assertEquals("Is First Page does not match", false, pagination.isFirstPage());
-        assertEquals("Is Last Page does not match", true, pagination.isLastPage());
-        assertEquals("Previous Page Link Number does not match", 1, pagination.getPreviousPageLinkNumber());
-        assertEquals("Next Page Link Number does not match", 4, pagination.getNextPageLinkNumber());
-        assertEquals("Is Display Previous Page Link does not match", false, pagination.isDisplayPreviousPageLink());
-        assertEquals("Is Display Next Page Link does not match", false, pagination.isDisplayNextPageLink());
-        assertEquals("Total Pages does not match", 4, pagination.getTotalPages());
+    @Test
+    void lastPageOfFour() {
+        Pagination pagination = pagination(3, 4);
+
+        assertThat(pagination.getStartPageNumber()).as("start page number").isEqualTo(1);
+        assertThat(pagination.getEndPageNumber()).as("end page number").isEqualTo(4);
+        assertThat(pagination.getCurrentPageNumber()).as("current page number").isEqualTo(4);
+        assertThat(pagination.getPreviousPageLinkNumber()).as("previous page link number").isEqualTo(1);
+        assertThat(pagination.getNextPageLinkNumber()).as("next page link number").isEqualTo(4);
+        assertThat(pagination.isDisplayPreviousPageLink()).as("display previous page link").isFalse();
+        assertThat(pagination.isDisplayNextPageLink()).as("display next page link").isFalse();
+    }
+
+    /**
+     * An empty result set reports no pages at all, so the template must not try to
+     * render a page number range that runs backwards.
+     */
+    @Test
+    void emptyResultHasNoPages() {
+        Pagination pagination = pagination(0, 0);
+
+        assertThat(pagination.getTotalPages()).as("total pages").isEqualTo(0);
+        assertThat(pagination.getCurrentPageNumber()).as("current page number").isEqualTo(1);
+        assertThat(pagination.getEndPageNumber()).as("end page number").isZero();
+        assertThat(pagination.isDisplayPreviousPageLink()).as("display previous page link").isFalse();
+        assertThat(pagination.isDisplayNextPageLink()).as("display next page link").isFalse();
     }
 }

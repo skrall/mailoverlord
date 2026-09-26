@@ -1,4 +1,6 @@
 
+var contextRoot = document.body.getAttribute('data-context-root');
+
 function getSelectedMessageIds() {
     var ids = [];
     $("input[name=messageCheckBox]:checked:enabled").each(function () {

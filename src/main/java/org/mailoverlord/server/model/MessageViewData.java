@@ -4,13 +4,13 @@ import org.mailoverlord.server.entities.Message;
 import org.springframework.data.domain.Page;
 
 /**
- * Just a wrapper so JSTL can be type safe.
+ * Wraps a page of messages so the view template can be type safe.
  */
-public class MessageJspData {
+public class MessageViewData {
 
-    private Page<Message> page;
+    private final Page<Message> page;
 
-    public MessageJspData(Page<Message> page) {
+    public MessageViewData(Page<Message> page) {
         this.page = page;
     }
 
