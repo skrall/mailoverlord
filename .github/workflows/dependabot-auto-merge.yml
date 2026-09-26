@@ -18,8 +18,10 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request' && startsWith(github.event.workflow_run.head_branch, 'dependabot/') }}
     runs-on: ubuntu-latest
     steps:
+      # No --delete-branch: this job has no checkout, and gh fails trying to delete the
+      # branch locally. Dependabot removes its own branch once the pull request merges.
       - name: Merge pull request
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.workflow_run.pull_requests[0].number }}
-        run: gh pr merge "$PR_NUMBER" --squash --delete-branch
+        run: gh pr merge "$PR_NUMBER" --squash
