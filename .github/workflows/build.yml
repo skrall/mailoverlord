@@ -26,15 +26,5 @@ jobs:
           java-version: '25'
           cache: maven
 
-      # setup-java's cache only covers ~/.m2/repository, not the Maven distribution
-      # that ./mvnw downloads and unpacks into ~/.m2/wrapper. Keying on the wrapper
-      # properties means a pinned-version bump gets a fresh cache rather than a stale
-      # distribution, without a restore-key handing back the wrong version.
-      - name: Cache the Maven distribution
-        uses: actions/cache@v6
-        with:
-          path: ~/.m2/wrapper
-          key: ${{ runner.os }}-maven-wrapper-${{ hashFiles('.mvn/wrapper/maven-wrapper.properties') }}
-
       - name: Verify
         run: ./mvnw -B --batch-mode verify
