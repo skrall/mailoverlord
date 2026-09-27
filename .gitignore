@@ -3,3 +3,8 @@
 target
 data
 overlord-jetty.properties
+
+# Eclipse workspace metadata, per developer rather than per project
+.classpath
+.project
+.settings
