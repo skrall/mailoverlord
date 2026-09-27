@@ -1,0 +1,4 @@
+node_modules/
+dist/
+# Node downloaded by the Maven build, not the one on your machine.
+node/
