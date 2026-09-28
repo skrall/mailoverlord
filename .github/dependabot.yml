@@ -18,3 +18,19 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    ignore:
+      # TypeScript 7 is the Go-based native compiler and does not export the
+      # ./lib/tsc subpath that vue-tsc resolves to find the compiler, so the
+      # typecheck step cannot start at all:
+      #   ERR_PACKAGE_PATH_NOT_EXPORTED: Package subpath './lib/tsc' is not
+      #   defined by "exports" in node_modules/typescript/package.json
+      # openapi-typescript also peers on typescript ^5.x. Revisit once vue-tsc
+      # supports the native compiler.
+      - dependency-name: typescript
+        versions: ["7.x"]
+      # @types/node tracks the Node major that actually runs the build. The
+      # Maven build downloads node.version from pom.xml, currently v22.14.0,
+      # and @types/node is only used for process.env in vite.config.ts. Taking
+      # 23+ would describe a runtime the build does not use.
+      - dependency-name: "@types/node"
+        versions: ["23.x", "24.x", "25.x", "26.x"]
