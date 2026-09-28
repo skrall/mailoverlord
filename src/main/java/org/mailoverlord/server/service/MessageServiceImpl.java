@@ -5,11 +5,11 @@ import java.nio.charset.StandardCharsets;
 
 import jakarta.mail.Address;
 import jakarta.mail.Message.RecipientType;
+import jakarta.mail.Multipart;
 import jakarta.mail.Part;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.InternetHeaders;
 import jakarta.mail.internet.MimeMessage;
-import jakarta.mail.internet.MimeMultipart;
 import jakarta.mail.internet.MimeUtility;
 import org.mailoverlord.server.entities.Message;
 import org.mailoverlord.server.model.MessageDeleteRequest;
@@ -148,7 +148,7 @@ public class MessageServiceImpl implements MessageService {
             Object content = part.getContent();
             return content instanceof String text ? text : null;
         }
-        if (part instanceof MimeMultipart multipart) {
+        if (part.isMimeType("multipart/*") && part.getContent() instanceof Multipart multipart) {
             for (int i = 0; i < multipart.getCount(); i++) {
                 String found = firstTextPart(multipart.getBodyPart(i));
                 if (found != null) {
