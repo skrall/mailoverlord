@@ -17,6 +17,9 @@ That's it. Mailoverlord is a self-contained executable JAR with an embedded Tomc
 there is no servlet container, application server, or JNDI to set up. Captured mail is
 stored in an embedded in-memory H2 database.
 
+The web UI is built from the `ui/` directory during the Maven build, using a Node
+distribution the build downloads itself, so Node does not have to be installed.
+
 An SMTP server to release to is only needed if you actually release messages.
 
 ## Build
@@ -148,26 +151,77 @@ Two sets of runtime hints keep the image working, both registered in
   scanning hibernate-core, so a Hibernate upgrade cannot silently break them. Without them
   startup dies with `Invalid logger interface org.hibernate.jpa.internal.JpaLogger
   (implementation not found)`.
-* `ViewModelRuntimeHints` registers the model types that the Thymeleaf template reads
-  through SpEL. Without them every request for the UI fails with `EL1008E: Property or field
-  'page' cannot be found on object of type 'MessageViewData'`.
+* `ApiModelRuntimeHints` registers the API response types. They are records, so Jackson
+  needs both their accessors and their constructors to be reachable. Without them the JSON
+  API answers with empty objects in a native image.
+
+The build needs a GraalVM JDK with `native-image` available. If `JAVA_HOME` points at a
+plain JDK, set `JAVA_HOME` or `GRAALVM_HOME` to the GraalVM installation first, otherwise
+the build fails with `native-image is not installed in your JAVA_HOME`.
 
 ## Web UI
 
-* `/` lists captured messages, newest first, 20 to a page. Page with the standard
-  Spring Data parameters, e.g. `/?size=50&page=2` (0-based) or `/?sort=from,asc`.
+The UI is a Vue 3 and TypeScript single-page app in [`ui/`](ui). It is built by Vite into
+the application jar, so the same process serves the UI and the API and the browser only
+ever talks to one origin. There is no CORS configuration, and no second container to run.
+
+* `/` shows captured messages newest first, 25 to a page, sortable by received time, sender
+  and recipient. Select rows to release or delete them, click one to read it in the side
+  panel, and page with the standard Spring Data parameters. The list refreshes every ten
+  seconds, so captured mail appears without a manual reload.
+* The list endpoint returns summaries only, never message bodies, so a page of large
+  messages stays small. Opening a message fetches its body on demand.
+
+## Working on the UI
+
+```bash
+cd ui
+npm install
+npm run dev
+```
+
+The dev server runs on port 5173 and proxies `/messages` and `/v3` to the application on
+port 8080, so start Mailoverlord separately with `./mvnw spring-boot:run` and the browser
+still sees a single origin. CSS and component changes reload without rebuilding the jar or
+the native image.
+
+`-Dskip.ui=true` builds the Java side without rebuilding the UI, which is useful when only
+backend code changed.
+
+### Generated API types
+
+The TypeScript types come from the OpenAPI document that
+[springdoc](https://springdoc.org/) publishes at `/v3/api-docs`, via
+[openapi-typescript](https://openapi-ts.dev/). After changing a request or response type on
+the server, regenerate them:
+
+```bash
+cd ui
+npm run generate:spec   # writes openapi.json, starting the app if it is not running
+npm run generate:types  # writes src/api/schema.d.ts
+```
+
+Both files are committed, and CI regenerates them and fails if they differ, so the types
+cannot silently fall behind the API.
 
 ## API
 
-* `GET /messages/list` — captured messages as JSON. Accepts the same paging and sorting
-  parameters as the UI.
+* `GET /messages/list` — one page of message summaries. Returns a `PageResponse` with
+  `content`, `number`, `size`, `totalElements`, `totalPages`, `first` and `last`. Accepts
+  the standard Spring Data paging and sorting parameters, e.g. `?size=50&page=2` (0-based)
+  or `?sort=from,asc`. Defaults to 25 per page, newest first.
+* `GET /messages/{id}` — one message in full, including its `body`. Returns 404 if no
+  message has that id.
 * `POST /messages/delete` — delete messages, body `{"messageIds": [1, 2]}`.
 * `POST /messages/release` — release messages. All fields are optional; with only
   `messageIds` the original addresses are used.
   * `overrideTo` / `overrideToAddresses` — replace the `To` recipients (comma separated).
   * `overrideFrom` / `overrideFromAddress` — replace the `From` address.
-* `GET /message` and `GET /message/{id}` — the same messages as a Spring Data REST
-  resource, including HAL navigation and paging.
+* `GET /v3/api-docs` — the OpenAPI document the UI types are generated from.
+
+Summaries carry a `subject`, decoded from the RFC 2047 encoding the SMTP server stores, and
+a `sizeBytes`. Subjects are parsed on the read path rather than stored in a column, so
+listing a page reads each row's message content.
 
 Releasing mail that Mailoverlord cannot reach returns HTTP 200 with
 `{"successful": false, "errorMessage": "..."}` and leaves the messages captured, so you
@@ -176,9 +230,14 @@ can fix the target and try again.
 ## Notes on this version
 
 * Timestamps are ISO-8601 (`Instant`) rather than epoch milliseconds.
-* The UI is Thymeleaf; there is no `src/main/webapp` and no JSP.
+* The UI is a Vue 3 single-page app, not a server-rendered template. There is no
+  `src/main/webapp`, no JSP, and no Thymeleaf.
 * `receivedTimestamp` and `remoteAddress` are stored as `TIMESTAMP` and `VARCHAR`.
   An existing database from 1.x will need those columns migrated.
+* `GET /messages/list` returns a `PageResponse` envelope rather than a bare array, and its
+  rows no longer contain the `data` field. Use `GET /messages/{id}` for message bodies.
+* The Spring Data REST resource at `/message` has been removed in favour of the hand
+  written endpoints above.
 
 ## Tests
 

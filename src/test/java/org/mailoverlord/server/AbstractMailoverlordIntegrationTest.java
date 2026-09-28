@@ -2,6 +2,7 @@ package org.mailoverlord.server;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.InternetAddress;
@@ -45,9 +46,20 @@ public abstract class AbstractMailoverlordIntegrationTest {
      * Stores a message the way the SMTP server would, so that it can be released again.
      */
     protected Message saveMessage(String from, String to) throws MessagingException, IOException {
+        return saveMessage(from, to, "Test subject");
+    }
+
+    /**
+     * Stores a message with an explicit subject. The subject is written as an RFC 2047
+     * encoded word, which is what the SMTP server produces for non-ASCII subjects, so that
+     * tests cover decoding rather than a plain ASCII header.
+     */
+    protected Message saveMessage(String from, String to, String subject)
+            throws MessagingException, IOException {
         MimeMessage mimeMessage = mailSender.createMimeMessage();
         mimeMessage.setFrom(new InternetAddress(from));
         mimeMessage.setRecipient(jakarta.mail.Message.RecipientType.TO, new InternetAddress(to));
+        mimeMessage.setSubject(subject, StandardCharsets.UTF_8.name());
         mimeMessage.setText("Hi");
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();

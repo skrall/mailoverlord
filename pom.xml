@@ -51,6 +51,15 @@
         <java.version>25</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <subethamail.version>7.2.2</subethamail.version>
+        <!-- 3.x is the line built against Spring Boot 4; 2.x targets Spring Boot 3. -->
+        <springdoc.version>3.1.1</springdoc.version>
+        <!--
+            Node is downloaded by the build rather than taken from the machine, so that
+            `mvn verify` produces the same UI everywhere. 22 is the current LTS line.
+        -->
+        <node.version>v22.14.0</node.version>
+        <!-- Set to true to build the Java side without rebuilding the UI. -->
+        <skip.ui>false</skip.ui>
     </properties>
 
     <dependencies>
@@ -60,19 +69,23 @@
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-thymeleaf</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-rest</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
+
+        <!--
+            Publishes an OpenAPI description of the JSON API at /v3/api-docs. The Vue UI
+            generates its types from that document, so the spec has to stay accurate. This
+            is the -api starter rather than -ui: the Swagger UI webjar is not needed to
+            generate types, and it keeps the native image smaller.
+        -->
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-api</artifactId>
+            <version>${springdoc.version}</version>
         </dependency>
 
         <!--
@@ -121,6 +134,85 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-release-plugin</artifactId>
                 <version>3.3.1</version>
+            </plugin>
+
+            <!--
+                Builds the Vue UI in ui/ and drops the result into the application jar, so the
+                UI is served by the same process as the API. That keeps everything on one
+                origin, which means no CORS configuration and no second container.
+
+                The build has to finish before Spring Boot's AOT processing, which runs in
+                process-classes, so the frontend work happens in generate-resources.
+            -->
+            <plugin>
+                <groupId>com.github.eirslett</groupId>
+                <artifactId>frontend-maven-plugin</artifactId>
+                <version>2.0.2</version>
+                <configuration>
+                    <workingDirectory>${project.basedir}/ui</workingDirectory>
+                    <installDirectory>${project.basedir}/ui/node</installDirectory>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>install-node-and-npm</id>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>install-node-and-npm</goal>
+                        </goals>
+                        <configuration>
+                            <nodeVersion>${node.version}</nodeVersion>
+                            <!-- The trailing slash matters: the plugin joins this and the
+                                 version directly, and gets a 404 without it. -->
+                            <nodeDownloadRoot>https://nodejs.org/dist/</nodeDownloadRoot>
+                            <skip>${skip.ui}</skip>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>npm-ci</id>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>npm</goal>
+                        </goals>
+                        <configuration>
+                            <arguments>ci</arguments>
+                            <skip>${skip.ui}</skip>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>npm-build</id>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>npm</goal>
+                        </goals>
+                        <configuration>
+                            <arguments>run build</arguments>
+                            <skip>${skip.ui}</skip>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>copy-ui-into-the-jar</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <skip>${skip.ui}</skip>
+                            <outputDirectory>${project.build.outputDirectory}/static</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>${project.basedir}/ui/dist</directory>
+                                    <filtering>false</filtering>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

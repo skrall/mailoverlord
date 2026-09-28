@@ -28,3 +28,15 @@ jobs:
 
       - name: Verify
         run: ./mvnw -B --batch-mode verify
+
+      # The UI's types are generated from the OpenAPI document, so a DTO change that nobody
+      # regenerated the types for would otherwise slip through and only fail in an editor.
+      # Regenerating here turns that into a build failure.
+      - name: Check the generated API types are up to date
+        run: |
+          cd ui
+          npm ci
+          npm run generate:spec
+          npm run generate:types
+          cd ..
+          git diff --exit-code -- ui/openapi.json ui/src/api/schema.d.ts
