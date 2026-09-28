@@ -19,15 +19,25 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     ignore:
-      # TypeScript 7 is the Go-based native compiler and does not export the
-      # ./lib/tsc subpath that vue-tsc resolves to find the compiler, so the
-      # typecheck step cannot start at all:
+      # TypeScript 6 and 7 are both blocked, for different reasons.
+      #
+      # 6.x makes `npm ci` fail outright, which is what the Maven build runs:
+      #   npm error Fix the upstream dependency conflict, or retry
+      #   this command with --force or --legacy-peer-deps
+      # because openapi-typescript peers on typescript ^5.x. Note that
+      # `npm install` appears to succeed and only warns, so this looks
+      # fine locally and still breaks the build.
+      #
+      # 7.x is the Go-based native compiler and does not export the ./lib/tsc
+      # subpath that vue-tsc resolves to find the compiler, so the typecheck
+      # step cannot start at all:
       #   ERR_PACKAGE_PATH_NOT_EXPORTED: Package subpath './lib/tsc' is not
       #   defined by "exports" in node_modules/typescript/package.json
-      # openapi-typescript also peers on typescript ^5.x. Revisit once vue-tsc
+      #
+      # Revisit both once openapi-typescript widens its peer range and vue-tsc
       # supports the native compiler.
       - dependency-name: typescript
-        versions: ["7.x"]
+        versions: ["6.x", "7.x"]
       # @types/node tracks the Node major that actually runs the build. The
       # Maven build downloads node.version from pom.xml, currently v22.14.0,
       # and @types/node is only used for process.env in vite.config.ts. Taking
