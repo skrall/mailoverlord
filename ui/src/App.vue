@@ -13,6 +13,7 @@ import MessageDetailPanel from './components/MessageDetail.vue'
 import MessageTable from './components/MessageTable.vue'
 import PaginationBar from './components/PaginationBar.vue'
 import ReleaseDialog from './components/ReleaseDialog.vue'
+import SplitPane from './components/SplitPane.vue'
 
 const page = ref(0)
 const size = ref(25)
@@ -204,41 +205,45 @@ onUnmounted(() => window.clearInterval(pollTimer))
 
     <p v-if="error" class="error" role="alert">{{ error }}</p>
 
-    <div class="content">
-      <section class="list">
-        <div class="scroll">
-          <MessageTable
-            :messages="messages"
-            :selected-ids="selectedIds"
-            :active-id="activeId"
-            :sort-field="sortField"
-            :sort-direction="sortDirection"
+    <SplitPane>
+      <template #primary>
+        <section class="list">
+          <div class="scroll">
+            <MessageTable
+              :messages="messages"
+              :selected-ids="selectedIds"
+              :active-id="activeId"
+              :sort-field="sortField"
+              :sort-direction="sortDirection"
+              :busy="busy"
+              @toggle="toggle"
+              @toggle-all="toggleAll"
+              @open="open"
+              @sort="sortBy"
+            />
+          </div>
+          <PaginationBar
+            :page="page"
+            :size="size"
+            :total-elements="totalElements"
+            :total-pages="totalPages"
             :busy="busy"
-            @toggle="toggle"
-            @toggle-all="toggleAll"
-            @open="open"
-            @sort="sortBy"
+            @page="goToPage"
+            @size="changeSize"
+            @refresh="load"
           />
-        </div>
-        <PaginationBar
-          :page="page"
-          :size="size"
-          :total-elements="totalElements"
-          :total-pages="totalPages"
-          :busy="busy"
-          @page="goToPage"
-          @size="changeSize"
-          @refresh="load"
-        />
-      </section>
+        </section>
+      </template>
 
-      <MessageDetailPanel
-        class="panel"
-        :message="detail"
-        :loading="detailLoading"
-        @close="closeDetail"
-      />
-    </div>
+      <template #secondary>
+        <MessageDetailPanel
+          class="panel"
+          :message="detail"
+          :loading="detailLoading"
+          @close="closeDetail"
+        />
+      </template>
+    </SplitPane>
 
     <ReleaseDialog
       v-if="showReleaseDialog"
@@ -290,17 +295,13 @@ h1 {
   border-bottom: 1px solid var(--border);
 }
 
-.content {
-  display: flex;
-  flex: 1;
-  min-height: 0;
-}
-
 .list {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-width: 0;
+  /* Without this the list cannot shrink below its rows, so .scroll never scrolls. */
+  min-height: 0;
 }
 
 .scroll {
@@ -309,19 +310,10 @@ h1 {
   overflow: auto;
 }
 
+/* Fills the slot the split pane gives it; the split itself owns the width. */
 .panel {
-  flex: 0 0 min(30rem, 40%);
-}
-
-@media (max-width: 60rem) {
-  .content {
-    flex-direction: column;
-  }
-
-  .panel {
-    flex: 0 0 20rem;
-    border-left: 0;
-    border-top: 1px solid var(--border);
-  }
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
 }
 </style>

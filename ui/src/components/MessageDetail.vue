@@ -51,7 +51,6 @@ const recipients = computed(() => {
   flex-direction: column;
   min-height: 0;
   background: var(--surface);
-  border-left: 1px solid var(--border);
 }
 
 header {
