@@ -56,7 +56,13 @@ function ariaSort(field: string, sortField: string, direction: 'asc' | 'desc'): 
       </tr>
     </thead>
     <tbody>
-      <tr v-if="messages.length === 0">
+      <tr v-if="messages.length === 0 && busy">
+        <td colspan="5" class="empty">
+          <span class="spinner" aria-hidden="true"></span>
+          Loading messages…
+        </td>
+      </tr>
+      <tr v-else-if="messages.length === 0">
         <td colspan="5" class="empty">No mail captured yet. Send something to the SMTP port to see it here.</td>
       </tr>
       <template v-else>
@@ -170,5 +176,23 @@ tbody tr.active {
   padding: 32px 10px;
   text-align: center;
   color: var(--text-muted);
+}
+
+.spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 8px;
+  vertical-align: -2px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>
