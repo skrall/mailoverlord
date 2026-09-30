@@ -145,6 +145,93 @@ class MessageRestControllerTest extends AbstractMailoverlordIntegrationTest {
     }
 
     /**
+     * Both request DTOs default messageIds to an empty list, so a body that misspells the
+     * field deserialises cleanly and leaves nothing selected. The service then deletes
+     * nothing and the endpoint answered successful: true, which is a lie for a destructive
+     * operation and impossible to tell apart from a real delete.
+     */
+    @Test
+    void deleteWithAMisspelledIdFieldIsRejected() throws Exception {
+        Message message = saveMessage("from@test.com", "to@test.com");
+
+        mockMvc.perform(post("/messages/delete")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ids\": [%d]}".formatted(message.getId())))
+                .andExpect(status().isBadRequest());
+
+        // The message must survive: a rejected request is not a licence to delete.
+        assertThat(messageRepository.findById(message.getId())).isPresent();
+    }
+
+    @Test
+    void deleteWithAnEmptyIdListIsRejected() throws Exception {
+        mockMvc.perform(post("/messages/delete")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"messageIds\": []}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    /**
+     * An explicit null used to throw a NullPointerException out of the debug log line,
+     * which read getMessageIds().size() before the try block, and surfaced as a 500.
+     */
+    @Test
+    void deleteWithANullIdListIsRejected() throws Exception {
+        mockMvc.perform(post("/messages/delete")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"messageIds\": null}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    /**
+     * Release shared the same guardless shape as delete, and the stakes are higher: a
+     * silently empty release forwards no mail while reporting that it did.
+     */
+    @Test
+    void releaseWithAMisspelledIdFieldIsRejected() throws Exception {
+        mockMvc.perform(post("/messages/release")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"ids\": [1]}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void releaseWithAnEmptyIdListIsRejected() throws Exception {
+        mockMvc.perform(post("/messages/release")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"messageIds\": []}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void releaseWithANullIdListIsRejected() throws Exception {
+        mockMvc.perform(post("/messages/release")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"messageIds\": null}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    /**
+     * A valid delete still deletes, and still answers 200. The rejections above are only
+     * meaningful if the happy path is unaffected.
+     */
+    @Test
+    void deleteWithAnUnknownIdStillSucceeds() throws Exception {
+        mockMvc.perform(post("/messages/delete")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"messageIds\": [999999]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.successful").value(true));
+    }
+
+    /**
      * The Vue UI generates its types from this document, so the endpoints it calls have to
      * keep showing up here.
      */
