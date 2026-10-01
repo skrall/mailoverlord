@@ -75,5 +75,59 @@ class DatabaseMessageHandlerFactoryTest extends AbstractMailoverlordIntegrationT
         Message databaseMessage = messages.getFirst();
         assertThat(databaseMessage.getTo()).as("to addresses").isEqualTo(TO1 + "," + TO2 + "," + TO3);
         assertThat(databaseMessage.getFrom()).as("from address").isEqualTo(FROM);
+        assertThat(databaseMessage.getSubject()).as("subject").isEqualTo("This is a test message");
+    }
+
+    @Test
+    void subjectIsStoredDecoded() throws MessagingException {
+        MimeMessage message = mailSender.createMimeMessage();
+        message.setFrom(new InternetAddress(FROM));
+        message.addRecipients(jakarta.mail.Message.RecipientType.TO, TO1);
+        message.setSubject("Ünïcödé 😀 subject", StandardCharsets.UTF_8.name());
+        message.setText(MESSAGE_TEXT);
+
+        mailSender.send(message);
+
+        List<Message> messages = messageRepository.findByFrom(FROM);
+        assertThat(messages).as("captured messages").hasSize(1);
+        assertThat(messages.getFirst().getSubject())
+                .as("subject, decoded from the encoded word the wire carries")
+                .isEqualTo("Ünïcödé 😀 subject");
+    }
+
+    @Test
+    void messageWithoutASubjectIsStoredWithoutOne() throws MessagingException {
+        MimeMessage message = mailSender.createMimeMessage();
+        message.setFrom(new InternetAddress(FROM));
+        message.addRecipients(jakarta.mail.Message.RecipientType.TO, TO1);
+        message.setText(MESSAGE_TEXT);
+
+        mailSender.send(message);
+
+        List<Message> messages = messageRepository.findByFrom(FROM);
+        assertThat(messages).as("captured messages").hasSize(1);
+        assertThat(messages.getFirst().getSubject())
+                .as("absent subject stays absent rather than becoming an empty string")
+                .isNull();
+    }
+
+    @Test
+    void overlongSubjectIsTruncatedRatherThanRejected() throws MessagingException {
+        String subject = "s".repeat(5000);
+
+        MimeMessage message = mailSender.createMimeMessage();
+        message.setFrom(new InternetAddress(FROM));
+        message.addRecipients(jakarta.mail.Message.RecipientType.TO, TO1);
+        message.setSubject(subject, StandardCharsets.UTF_8.name());
+        message.setText(MESSAGE_TEXT);
+
+        mailSender.send(message);
+
+        List<Message> messages = messageRepository.findByFrom(FROM);
+        assertThat(messages).as("captured messages").hasSize(1);
+        assertThat(messages.getFirst().getSubject())
+                .as("truncated to the column length")
+                .hasSize(4000)
+                .startsWith("sss");
     }
 }

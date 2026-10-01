@@ -22,6 +22,7 @@ const columns: { field: string; label: string }[] = [
   { field: 'receivedTimestamp', label: 'Received' },
   { field: 'from', label: 'From' },
   { field: 'to', label: 'To' },
+  { field: 'subject', label: 'Subject' },
 ]
 
 function ariaSort(field: string, sortField: string, direction: 'asc' | 'desc'): 'ascending' | 'descending' | 'none' {
@@ -51,19 +52,18 @@ function ariaSort(field: string, sortField: string, direction: 'asc' | 'desc'): 
             <span v-if="sortField === column.field" aria-hidden="true">{{ sortDirection === 'asc' ? '▲' : '▼' }}</span>
           </button>
         </th>
-        <th>Subject</th>
         <th class="size">Size</th>
       </tr>
     </thead>
     <tbody>
       <tr v-if="messages.length === 0 && busy">
-        <td colspan="5" class="empty">
+        <td colspan="6" class="empty">
           <span class="spinner" aria-hidden="true"></span>
           Loading messages…
         </td>
       </tr>
       <tr v-else-if="messages.length === 0">
-        <td colspan="5" class="empty">No mail captured yet. Send something to the SMTP port to see it here.</td>
+        <td colspan="6" class="empty">No mail captured yet. Send something to the SMTP port to see it here.</td>
       </tr>
       <template v-else>
         <tr

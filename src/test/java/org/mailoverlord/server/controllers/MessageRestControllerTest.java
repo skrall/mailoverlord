@@ -50,10 +50,12 @@ class MessageRestControllerTest extends AbstractMailoverlordIntegrationTest {
     }
 
     /**
-     * Subjects are stored as RFC 2047 encoded words, so the summary has to decode them.
+     * The summary reports the subject column as stored. Decoding an encoded word happens when
+     * the message is captured, so what this asserts is that a non-ASCII subject survives the
+     * round trip to the API intact rather than being re-encoded or mangled on the way out.
      */
     @Test
-    void listDecodesEncodedSubject() throws Exception {
+    void listReturnsTheStoredSubject() throws Exception {
         saveMessage("from@test.com", "to@test.com", "Hello world 😀");
 
         mockMvc.perform(get("/messages/list").accept(MediaType.APPLICATION_JSON))
@@ -76,6 +78,102 @@ class MessageRestControllerTest extends AbstractMailoverlordIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].from").value("newer@test.com"))
                 .andExpect(jsonPath("$.content[1].from").value("older@test.com"));
+    }
+
+    /**
+     * The point of the subject column: sorting has to happen in the database, so the order
+     * comes back from the query rather than from anything the service does per row.
+     */
+    @Test
+    void listCanBeSortedBySubject() throws Exception {
+        saveMessage("from@test.com", "to@test.com", "Charlie");
+        saveMessage("from@test.com", "to@test.com", "Alpha");
+        saveMessage("from@test.com", "to@test.com", "Bravo");
+
+        mockMvc.perform(get("/messages/list?sort=subject,asc").accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].subject").value("Alpha"))
+                .andExpect(jsonPath("$.content[1].subject").value("Bravo"))
+                .andExpect(jsonPath("$.content[2].subject").value("Charlie"));
+    }
+
+    @Test
+    void listSortsBySubjectDescending() throws Exception {
+        saveMessage("from@test.com", "to@test.com", "Alpha");
+        saveMessage("from@test.com", "to@test.com", "Charlie");
+
+        mockMvc.perform(get("/messages/list?sort=subject,desc").accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].subject").value("Charlie"))
+                .andExpect(jsonPath("$.content[1].subject").value("Alpha"));
+    }
+
+    /**
+     * Ties on the primary key have to break deterministically. Without a tiebreaker the
+     * database is free to order equal rows differently between two reads, and since the
+     * table polls, a row can then appear on two pages or on none.
+     */
+    @Test
+    void equalSubjectsAreOrderedByWhenTheyArrived() throws Exception {
+        Message older = saveMessage("older@test.com", "to@test.com", "Same subject");
+        Message newer = saveMessage("newer@test.com", "to@test.com", "Same subject");
+        messageRepository.findById(older.getId()).orElseThrow().setReceivedTimestamp(
+                java.time.Instant.parse("2020-01-01T00:00:00Z"));
+        messageRepository.findById(newer.getId()).orElseThrow().setReceivedTimestamp(
+                java.time.Instant.parse("2024-01-01T00:00:00Z"));
+        messageRepository.save(messageRepository.findById(older.getId()).orElseThrow());
+        messageRepository.save(messageRepository.findById(newer.getId()).orElseThrow());
+
+        mockMvc.perform(get("/messages/list?sort=subject,asc").accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].from").value("newer@test.com"))
+                .andExpect(jsonPath("$.content[1].from").value("older@test.com"));
+    }
+
+    /**
+     * Mail with no subject is ordinary, not exceptional, so it has to survive the sort
+     * alongside everything else instead of blowing up or being silently dropped.
+     */
+    /**
+     * Mail with no subject is ordinary, not exceptional, so it has to survive a sort by
+     * subject alongside everything else instead of failing or being dropped. Which of the two
+     * rows leads is left open on purpose: where a missing value falls in an ascending sort is
+     * the database's call and differs between engines, and nothing here depends on it.
+     */
+    @Test
+    void listCanBeSortedBySubjectWhenSomeMessagesHaveNone() throws Exception {
+        saveMessageWithoutSubject("nosubject@test.com", "to@test.com");
+        saveMessage("from@test.com", "to@test.com", "Alpha");
+
+        mockMvc.perform(get("/messages/list?sort=subject,asc").accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.content[?(@.from == 'from@test.com')].subject")
+                        .value("Alpha"));
+    }
+
+    /**
+     * A sort name reaches Hibernate as an ORDER BY column, so an unknown one resolves to
+     * nothing and surfaces as a 500. It is a client typo, and has to be reported as one.
+     */
+    @Test
+    void listRejectsAnUnknownSortField() throws Exception {
+        mockMvc.perform(get("/messages/list?sort=data,asc").accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest());
+    }
+
+    /**
+     * Sorting by arrival is already the tiebreaker, so it is passed through untouched.
+     */
+    @Test
+    void listSortsByReceivedTimestampWhenAsked() throws Exception {
+        saveMessage("from@test.com", "to@test.com", "Any subject");
+
+        mockMvc.perform(get("/messages/list?sort=receivedTimestamp,asc")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1));
     }
 
     /**

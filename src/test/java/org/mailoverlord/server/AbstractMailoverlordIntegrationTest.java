@@ -50,9 +50,11 @@ public abstract class AbstractMailoverlordIntegrationTest {
     }
 
     /**
-     * Stores a message with an explicit subject. The subject is written as an RFC 2047
-     * encoded word, which is what the SMTP server produces for non-ASCII subjects, so that
-     * tests cover decoding rather than a plain ASCII header.
+     * Stores a message with an explicit subject. The MIME bytes keep the RFC 2047 encoded
+     * form, as the SMTP server produces for a non-ASCII subject, so that the raw data stays
+     * realistic; the column gets the decoded text, because that is what the handler writes
+     * once it has read the header. Decoding itself is covered where it happens, by sending
+     * real mail through the SMTP port rather than by inserting a row directly.
      */
     protected Message saveMessage(String from, String to, String subject)
             throws MessagingException, IOException {
@@ -60,6 +62,29 @@ public abstract class AbstractMailoverlordIntegrationTest {
         mimeMessage.setFrom(new InternetAddress(from));
         mimeMessage.setRecipient(jakarta.mail.Message.RecipientType.TO, new InternetAddress(to));
         mimeMessage.setSubject(subject, StandardCharsets.UTF_8.name());
+        mimeMessage.setText("Hi");
+
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        mimeMessage.writeTo(out);
+
+        Message message = new Message();
+        message.setFrom(from);
+        message.appendTo(to);
+        message.setSubject(subject);
+        message.setData(out.toByteArray());
+        return messageRepository.save(message);
+    }
+
+    /**
+     * Stores a message that never had a subject, which is what arrives when a sender omits
+     * the header. Its own fixture because an absent subject is a value the table has to sort
+     * and the API has to carry, not an edge case that can be stood in for by an empty string.
+     */
+    protected Message saveMessageWithoutSubject(String from, String to)
+            throws MessagingException, IOException {
+        MimeMessage mimeMessage = mailSender.createMimeMessage();
+        mimeMessage.setFrom(new InternetAddress(from));
+        mimeMessage.setRecipient(jakarta.mail.Message.RecipientType.TO, new InternetAddress(to));
         mimeMessage.setText("Hi");
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();

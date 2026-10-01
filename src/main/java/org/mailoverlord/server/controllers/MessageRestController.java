@@ -3,6 +3,7 @@ package org.mailoverlord.server.controllers;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
+import java.util.Set;
 import org.mailoverlord.server.model.MessageDeleteRequest;
 import org.mailoverlord.server.model.MessageDetail;
 import org.mailoverlord.server.model.MessageReleaseRequest;
@@ -12,6 +13,7 @@ import org.mailoverlord.server.model.PageResponse;
 import org.mailoverlord.server.service.MessageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
@@ -33,6 +35,12 @@ public class MessageRestController {
 
     private static final Logger logger = LoggerFactory.getLogger(MessageRestController.class);
 
+    /**
+     * Columns the table is allowed to order by, named for the entity properties behind them.
+     */
+    private static final Set<String> SORTABLE_FIELDS =
+            Set.of("receivedTimestamp", "from", "to", "subject");
+
     private final MessageService messageService;
 
     public MessageRestController(MessageService messageService) {
@@ -40,11 +48,41 @@ public class MessageRestController {
     }
 
     @Operation(summary = "List captured messages", description = "Returns one page of message "
-            + "summaries. Each summary omits the message body; use getMessage for that.")
+            + "summaries. Each summary omits the message body; use getMessage for that. "
+            + "Sort by receivedTimestamp, from, to or subject.")
     @GetMapping(value = "/messages/list", produces = MediaType.APPLICATION_JSON_VALUE)
     public PageResponse<MessageSummary> getTableData(@PageableDefault(size = 25,
             sort = "receivedTimestamp", direction = Sort.Direction.DESC) Pageable pageable) {
-        return messageService.listMessages(pageable);
+        return messageService.listMessages(sorted(pageable));
+    }
+
+    /**
+     * Rejects an unknown sort field, and gives every ordering a tiebreaker.
+     *
+     * <p>The sort name is handed straight to Hibernate, which turns it into an ORDER BY on a
+     * column. A name that is not a property does not come back as a bad request; it comes
+     * back as an unresolved identifier and surfaces as a 500, which reports a client typo as
+     * a server fault.
+     *
+     * <p>Subjects and sender addresses tie constantly and plenty of mail has no subject at
+     * all, so on its own a sort leaves tied rows in whatever order the database happens to
+     * produce. The table reloads every ten seconds, so between two reads a tie can break
+     * differently and a row moves across a page boundary: it reappears on one page having
+     * already been shown on another. Falling back to when the mail arrived makes the order
+     * total, and puts the newest first, which is what the table shows by default anyway.
+     */
+    private Pageable sorted(Pageable pageable) {
+        for (Sort.Order order : pageable.getSort()) {
+            if (!SORTABLE_FIELDS.contains(order.getProperty())) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "Cannot sort messages by " + order.getProperty() + ".");
+            }
+        }
+        if (pageable.getSort().getOrderFor("receivedTimestamp") != null) {
+            return pageable;
+        }
+        Sort sort = pageable.getSort().and(Sort.by(Sort.Direction.DESC, "receivedTimestamp"));
+        return PageRequest.of(pageable.getPageNumber(), pageable.getPageSize(), sort);
     }
 
     @Operation(summary = "Get one message", description = "Returns a single message in full, "

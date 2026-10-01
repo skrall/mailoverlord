@@ -8,9 +8,7 @@ import jakarta.mail.Message.RecipientType;
 import jakarta.mail.Multipart;
 import jakarta.mail.Part;
 import jakarta.mail.internet.InternetAddress;
-import jakarta.mail.internet.InternetHeaders;
 import jakarta.mail.internet.MimeMessage;
-import jakarta.mail.internet.MimeUtility;
 import org.mailoverlord.server.entities.Message;
 import org.mailoverlord.server.model.MessageDeleteRequest;
 import org.mailoverlord.server.model.MessageDetail;
@@ -91,7 +89,7 @@ public class MessageServiceImpl implements MessageService {
                 message.getFrom(),
                 message.getTo(),
                 message.getReceivedTimestamp(),
-                extractSubject(message.getData()),
+                message.getSubject(),
                 extractBody(message.getData()));
     }
 
@@ -103,26 +101,7 @@ public class MessageServiceImpl implements MessageService {
                 message.getTo(),
                 message.getReceivedTimestamp(),
                 data == null ? 0 : data.length,
-                extractSubject(data));
-    }
-
-    /**
-     * Reads the Subject header, decoding RFC 2047 encoded words so that non-ASCII subjects
-     * arrive readable. Uses {@link InternetHeaders} rather than a full parse because the
-     * table reads a header from every row it returns.
-     */
-    private String extractSubject(byte[] data) {
-        if (data == null) {
-            return null;
-        }
-        try {
-            InternetHeaders headers = new InternetHeaders(new ByteArrayInputStream(data));
-            String subject = headers.getHeader("Subject", null);
-            return subject == null ? null : MimeUtility.decodeText(subject);
-        } catch (Exception e) {
-            logger.debug("Could not read the subject of a message.", e);
-            return null;
-        }
+                message.getSubject());
     }
 
     private String extractBody(byte[] data) {

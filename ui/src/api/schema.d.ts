@@ -73,7 +73,7 @@ export interface paths {
         };
         /**
          * List captured messages
-         * @description Returns one page of message summaries. Each summary omits the message body; use getMessage for that.
+         * @description Returns one page of message summaries. Each summary omits the message body; use getMessage for that. Sort by receivedTimestamp, from, to or subject.
          */
         get: operations["getTableData"];
         put?: never;
