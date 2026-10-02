@@ -55,6 +55,7 @@ java -jar target/mailoverlord-2.0.0-SNAPSHOT.jar \
 | Property | Default | Description |
 | --- | --- | --- |
 | `mailoverlord.smtp.port` | `2025` | Port the embedded SMTP server listens on to collect incoming mail |
+| `mailoverlord.smtp.max-message-size` | `10485760` | Maximum message size in bytes (10 MB) before Mailoverlord refuses it |
 | `spring.mail.host` | `localhost` | Host released messages are sent to |
 | `spring.mail.port` | `25` | Port released messages are sent to |
 | `server.port` | `8080` | Web UI and API port |
