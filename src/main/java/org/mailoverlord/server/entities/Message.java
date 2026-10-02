@@ -4,6 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
+import jakarta.persistence.Lob;
 import jakarta.persistence.PrePersist;
 import java.time.Instant;
 
@@ -21,11 +22,6 @@ public class Message {
      * message define the width of the row and defeat the column length Hibernate generates.
      */
     private static final int MAX_SUBJECT_LENGTH = 4000;
-
-    /**
-     * 10 MB, which comfortably covers the default SMTP size limit of most mail servers.
-     */
-    private static final int MAX_DATA_LENGTH = 10 * 1024 * 1024;
 
     private Long id;
     private String from;
@@ -93,7 +89,22 @@ public class Message {
         }
     }
 
-    @Column(name = "DATA", length = MAX_DATA_LENGTH)
+/**
+     * The stored message, as received.
+     *
+     * <p>{@code @Lob} is what makes this a BLOB. Without it Hibernate maps a {@code byte[]} to
+     * {@code VARBINARY}, which defaults to 255 bytes and rejects any real message, so this
+     * annotation is load-bearing rather than decorative. The old {@code length} attribute had
+     * the opposite effect to what it looked like: Hibernate only falls back to a BLOB when the
+     * declared length is too large for an inline column, so the 10 MB constant was producing
+     * an unbounded BLOB by accident, and removing it silently produced {@code VARBINARY(255)}.
+     *
+     * <p>The size limit is therefore enforced while reading the message off the socket, in
+     * {@code DatabaseMessageHandlerFactory}, and is configurable as
+     * {@code mailoverlord.smtp.max-message-size}. The column itself is not the boundary.
+     */
+    @Lob
+    @Column(name = "DATA")
     public byte[] getData() {
         return data;
     }
