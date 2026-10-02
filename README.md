@@ -171,6 +171,9 @@ ever talks to one origin. There is no CORS configuration, and no second containe
   seconds, so captured mail appears without a manual reload.
 * The list endpoint returns summaries only, never message bodies, so a page of large
   messages stays small. Opening a message fetches its body on demand.
+* The UI follows the browser's colour scheme preference, with no toggle. Every colour is a
+  custom property in [`ui/src/style.css`](ui/src/style.css), and the dark values are in a
+  `prefers-color-scheme: dark` block beside the light ones.
 
 ## Working on the UI
 
