@@ -22,11 +22,6 @@ public class Message {
      */
     private static final int MAX_SUBJECT_LENGTH = 4000;
 
-    /**
-     * 10 MB, which comfortably covers the default SMTP size limit of most mail servers.
-     */
-    private static final int MAX_DATA_LENGTH = 10 * 1024 * 1024;
-
     private Long id;
     private String from;
     private String to = "";
@@ -93,7 +88,16 @@ public class Message {
         }
     }
 
-    @Column(name = "DATA", length = MAX_DATA_LENGTH)
+    /**
+     * The stored message, as received.
+     *
+     * <p>No length is declared, because a length here would bound nothing: Hibernate ignores it
+     * for a {@code byte[]} and emits an unbounded BLOB, so {@code length} here read as a limit
+     * that did not exist. The real limit is applied while reading the message off the socket,
+     * in {@code DatabaseMessageHandlerFactory}, and is configurable as
+     * {@code mailoverlord.smtp.max-message-size}.
+     */
+    @Column(name = "DATA")
     public byte[] getData() {
         return data;
     }
