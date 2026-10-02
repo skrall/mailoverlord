@@ -189,6 +189,21 @@
                             <skip>${skip.ui}</skip>
                         </configuration>
                     </execution>
+                    <execution>
+                        <id>npm-test</id>
+                        <phase>generate-resources</phase>
+                        <goals>
+                            <goal>npm</goal>
+                        </goals>
+                        <configuration>
+                            <!-- Runs here rather than in the test phase so that the UI is
+                                 verified by the same command that builds it, and so a failure
+                                 is attributed to a named execution rather than to the Java
+                                 tests. -->
+                            <arguments>test</arguments>
+                            <skip>${skip.ui}</skip>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
             <plugin>

@@ -15,5 +15,8 @@ The repo's own commits are short; match that, not a long-form essay.
 - The UI build pins Node `v22.14.0` (Maven downloads it to `ui/node/node`).
   Use that binary rather than a system Node: `export PATH="$PWD/ui/node/node:$PATH"`.
 - `npm run build` runs `vue-tsc --noEmit` then `vite build`; typecheck first.
+  The spec files are typechecked too, since `tsconfig.json` includes `src/**/*.ts`.
+- `npm test` in `ui/` runs the Vitest suite. `./mvnw verify` runs it as well,
+  so the Java build alone is not a shortcut past the UI tests.
 - OpenAPI drift is checked in CI: `npm run generate:spec` + `generate:types`
   in `ui/`, then `git diff --exit-code -- ui/openapi.json ui/src/api/schema.d.ts`.
