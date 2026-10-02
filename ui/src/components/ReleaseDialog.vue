@@ -71,7 +71,7 @@ function submit(): void {
   display: grid;
   place-items: center;
   padding: 16px;
-  background: rgba(28, 36, 48, 0.45);
+  background: var(--scrim);
 }
 
 .dialog {

@@ -7,10 +7,39 @@
   --surface-sunken: #f5f7fa;
   --accent: #2a5db0;
   --accent-soft: #e8effa;
+  --accent-contrast: #ffffff;
   --danger: #b3261e;
   --danger-soft: #fbeae9;
+  --scrim: rgba(28, 36, 48, 0.45);
   --radius: 6px;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* Dark theme. Every colour above is a variable, so this is a redefinition rather than an
+   audit, and the values are checked for contrast by src/style.spec.ts.
+
+   Two of them are not a straight inversion:
+
+   - The accent has to get lighter, because a mid-blue disappears against a dark surface.
+     That in turn means text sitting on the accent fill cannot stay white, hence
+     --accent-contrast. It is 7.5:1 here, against 2.6:1 if white were carried over.
+   - --scrim cannot be derived from --text either, since translucent light text over a
+     dark page would be a white haze rather than a dimming layer. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --border: #333d4b;
+    --border-strong: #4d5a6b;
+    --text: #e6eaf0;
+    --text-muted: #9aa5b4;
+    --surface: #1a2029;
+    --surface-sunken: #11161d;
+    --accent: #6ba4f0;
+    --accent-soft: #24334d;
+    --accent-contrast: #0b0f14;
+    --danger: #f08b84;
+    --danger-soft: #47262a;
+    --scrim: rgba(0, 0, 0, 0.6);
+  }
 }
 
 * {
@@ -53,7 +82,7 @@ button:disabled {
 button.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--accent-contrast);
 }
 
 button.primary:hover:not(:disabled) {
