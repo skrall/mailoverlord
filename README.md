@@ -165,10 +165,10 @@ The UI is a Vue 3 and TypeScript single-page app in [`ui/`](ui). It is built by 
 the application jar, so the same process serves the UI and the API and the browser only
 ever talks to one origin. There is no CORS configuration, and no second container to run.
 
-* `/` shows captured messages newest first, 25 to a page, sortable by received time, sender
-  and recipient. Select rows to release or delete them, click one to read it in the side
-  panel, and page with the standard Spring Data parameters. The list refreshes every ten
-  seconds, so captured mail appears without a manual reload.
+* `/` shows captured messages newest first, 25 to a page, sortable by received time, sender,
+  recipient and subject. Select rows to release or delete them, click one to read it in the
+  side panel, and page with the standard Spring Data parameters. The list refreshes every
+  ten seconds, so captured mail appears without a manual reload.
 * The list endpoint returns summaries only, never message bodies, so a page of large
   messages stays small. Opening a message fetches its body on demand.
 * The UI follows the browser's colour scheme preference, with no toggle. Every colour is a
@@ -230,8 +230,16 @@ cannot silently fall behind the API.
 * `GET /v3/api-docs` — the OpenAPI document the UI types are generated from.
 
 Summaries carry a `subject`, decoded from the RFC 2047 encoding the SMTP server stores, and
-a `sizeBytes`. Subjects are parsed on the read path rather than stored in a column, so
-listing a page reads each row's message content.
+a `sizeBytes`.
+
+The subject is a column rather than a header parsed out of the stored content on each
+request. The database cannot read a header out of a MIME blob, so ordering by subject has to
+become an `ORDER BY`, and it has to happen in SQL rather than in Java after the rows come
+back: a page of messages cannot be sorted by subject otherwise. It is decoded and truncated
+once, when the message is captured.
+
+`sizeBytes` is the length of the stored content, so listing a page still loads each row's
+blob even though nothing else in a summary needs it.
 
 Releasing mail that Mailoverlord cannot reach returns HTTP 200 with
 `{"successful": false, "errorMessage": "..."}` and leaves the messages captured, so you
