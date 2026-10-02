@@ -188,6 +188,13 @@ the native image.
 `-Dskip.ui=true` builds the Java side without rebuilding the UI, which is useful when only
 backend code changed.
 
+```bash
+npm test
+```
+
+runs the Vitest suite, which is also part of `./mvnw verify`. The spec files are typechecked
+along with the rest of the UI by `npm run build`.
+
 ### Generated API types
 
 The TypeScript types come from the OpenAPI document that
@@ -247,3 +254,14 @@ can fix the target and try again.
 
 Tests bind the SMTP port for real, so they cannot run two at a time or while the packaged
 application is already running.
+
+The UI has its own Vitest suite, which `./mvnw verify` runs as part of the build. To run it
+on its own:
+
+```bash
+cd ui
+npm test
+```
+
+Spec files live beside the code they cover and end in `.spec.ts`, so `ui/src/format.ts` is
+tested by `ui/src/format.spec.ts`.

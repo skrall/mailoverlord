@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
 
 // During development the UI runs on its own dev server and proxies API calls to the
@@ -18,5 +18,11 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+  },
+  test: {
+    // jsdom rather than node: component tests need a document, and the alternative is a
+    // per-file environment comment on every one of them.
+    environment: 'jsdom',
+    include: ['src/**/*.spec.ts'],
   },
 })
