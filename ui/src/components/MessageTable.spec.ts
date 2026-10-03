@@ -9,6 +9,7 @@ function summary(overrides: Partial<MessageSummary> = {}): MessageSummary {
     from: 'from@test.com',
     to: 'to@test.com',
     receivedTimestamp: '2024-03-01T09:30:00Z',
+    releasedTimestamp: null,
     sizeBytes: 1024,
     subject: 'Test subject',
     ...overrides,

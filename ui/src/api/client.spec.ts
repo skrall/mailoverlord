@@ -92,6 +92,7 @@ describe('listMessages', () => {
       from: '',
       to: '',
       receivedTimestamp: '',
+      releasedTimestamp: null,
       sizeBytes: 0,
       subject: '',
     })
@@ -99,12 +100,13 @@ describe('listMessages', () => {
 
   it('keeps the values it was given', async () => {
     const summary = {
-      id: 7,
-      from: 'a@test.com',
-      to: 'b@test.com',
-      receivedTimestamp: '2024-03-01T09:30:00Z',
-      sizeBytes: 1234,
-      subject: 'Hello',
+    id: 7,
+    from: 'a@test.com',
+    to: 'b@test.com',
+    receivedTimestamp: '2024-03-01T09:30:00Z',
+    releasedTimestamp: null,
+    sizeBytes: 1234,
+    subject: 'Hello',
     }
     fetchMock.mockResolvedValue(jsonResponse({ content: [summary] }))
 
