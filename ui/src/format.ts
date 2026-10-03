@@ -34,3 +34,23 @@ export function summariseAddresses(addresses: string): string {
   }
   return `${parts[0]} +${parts.length - 1} more`
 }
+
+/**
+ * Turns the value of a `datetime-local` input into the ISO instant the API expects.
+ *
+ * <p>A `datetime-local` field has no timezone, and the browser reports it as local time, so
+ * someone filtering to "yesterday morning" means their own morning. Sending that string
+ * unchanged would have the server read it as UTC and quietly shift the window by the
+ * difference, which is the kind of wrong answer that looks like missing mail.
+ *
+ * <p>An empty field means "no bound" rather than the epoch, so it becomes undefined and the
+ * parameter is left off the request entirely. Anything unparseable is treated the same way
+ * rather than sent on to fail as a bad request.
+ */
+export function toUtcIso(localDateTime: string | undefined): string | undefined {
+  if (!localDateTime) {
+    return undefined
+  }
+  const parsed = new Date(localDateTime)
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString()
+}

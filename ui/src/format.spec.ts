@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatBytes, formatTimestamp, summariseAddresses } from './format'
+import { formatBytes, formatTimestamp, summariseAddresses, toUtcIso } from './format'
 
 describe('formatBytes', () => {
   it('reports bytes below a kilobyte without a fraction', () => {
@@ -74,5 +74,43 @@ describe('summariseAddresses', () => {
     expect(summariseAddresses(' a@test.com , b@test.com ')).toBe('a@test.com +1 more')
     expect(summariseAddresses('a@test.com,')).toBe('a@test.com')
     expect(summariseAddresses(',,')).toBe('')
+  })
+})
+describe('toUtcIso', () => {
+  /**
+   * A `datetime-local` box carries no timezone, and the browser reads it as local time. Someone
+   * filtering to "yesterday morning" means their own morning, so the conversion has to round
+   * trip the wall clock the user actually typed.
+   *
+   * <p>Asserted by reading the local components back rather than against a fixed string, so the
+   * test holds on a machine in any timezone. Pinning a literal here would only pass at UTC.
+   */
+  it('treats a datetime-local value as local time', () => {
+    const iso = toUtcIso('2024-03-01T12:00')
+
+    expect(iso).toBeDefined()
+    const roundTripped = new Date(iso as string)
+    expect(roundTripped.getFullYear()).toBe(2024)
+    expect(roundTripped.getMonth()).toBe(2)
+    expect(roundTripped.getDate()).toBe(1)
+    expect(roundTripped.getHours()).toBe(12)
+    expect(roundTripped.getMinutes()).toBe(0)
+  })
+
+  it('returns an ISO instant in UTC', () => {
+    expect(toUtcIso('2024-03-01T12:00')).toMatch(/Z$/)
+  })
+
+  /**
+   * An empty box means "no bound", not the epoch. Turning it into a real instant would send a
+   * receivedFrom of 1970 and silently filter the table down to nothing.
+   */
+  it('treats an empty field as no bound at all', () => {
+    expect(toUtcIso('')).toBeUndefined()
+    expect(toUtcIso(undefined)).toBeUndefined()
+  })
+
+  it('drops an unparseable value rather than sending a bad request', () => {
+    expect(toUtcIso('not a date')).toBeUndefined()
   })
 })

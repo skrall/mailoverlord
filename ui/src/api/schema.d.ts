@@ -73,7 +73,7 @@ export interface paths {
         };
         /**
          * List captured messages
-         * @description Returns one page of message summaries. Each summary omits the message body; use getMessage for that. Sort by receivedTimestamp, from, to or subject.
+         * @description Returns one page of message summaries. Each summary omits the message body; use getMessage for that. Sort by receivedTimestamp, from, to or subject. Every filter is optional, matching on a case-insensitive substring, and they are combined with AND. receivedFrom and receivedTo are inclusive ISO-8601 instants bounding when the mail arrived. The total reflects the filter, not the whole mailbox.
          */
         get: operations["getTableData"];
         put?: never;
@@ -230,6 +230,11 @@ export interface operations {
         parameters: {
             query: {
                 pageable: components["schemas"]["Pageable"];
+                subject?: string;
+                from?: string;
+                to?: string;
+                receivedFrom?: string;
+                receivedTo?: string;
             };
             header?: never;
             path?: never;
