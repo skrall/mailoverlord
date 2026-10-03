@@ -200,3 +200,124 @@ describe('App polling', () => {
     expect(wrapper.text()).not.toContain('Stale result')
   })
 })
+describe('app shortcuts', () => {
+  /**
+   * Dispatches on the focused element rather than on window, because that is what the browser
+   * does: a keydown targets whatever has focus and bubbles up. Dispatching on window directly
+   * would hand the handler a target of `window` and quietly skip the typing check it is
+   * supposed to make, so the test would pass for the wrong reason.
+   */
+  function press(key: string, init: KeyboardEventInit = {}): KeyboardEvent {
+    const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init })
+    const target = document.activeElement ?? window
+    target.dispatchEvent(event)
+    return event
+  }
+
+  /** Selects the first row the way a user would, since selection is not a prop of App. */
+  async function selectFirst(wrapper: VueWrapper): Promise<void> {
+    await wrapper.find('#message-row-1 input[type="checkbox"]').setValue(true)
+    await flushPromises()
+  }
+
+  it('focuses the search box on /', async () => {
+    const wrapper = mountApp()
+    await flushPromises()
+
+    press('/')
+
+    expect(document.activeElement).toBe(wrapper.find('input[type="search"]').element)
+  })
+
+  /**
+   * The point of `/` is to get to the box, not to be a slash key. Once someone is typing in it
+   * — or in any other field — `/` belongs to them.
+   */
+  it('leaves / alone while a field has focus', async () => {
+    const wrapper = mountApp()
+    await flushPromises()
+    const from = wrapper.findAll<HTMLInputElement>('input[type="search"]')[1]
+    from.element.focus()
+
+    const event = press('/')
+
+    expect(document.activeElement).toBe(from.element)
+    expect(event.defaultPrevented).toBe(false)
+  })
+
+  it('leaves / alone while the date fields have focus', async () => {
+    const wrapper = mountApp()
+    await flushPromises()
+    const date = wrapper.find<HTMLInputElement>('input[type="datetime-local"]')
+    date.element.focus()
+
+    const event = press('/')
+
+    expect(document.activeElement).toBe(date.element)
+    expect(event.defaultPrevented).toBe(false)
+  })
+
+  it('deletes the selection on Delete', async () => {
+    fetchMock.mockImplementation((url: string) =>
+      url.includes('/messages/delete')
+        ? Promise.resolve(jsonResponse({ successful: true }))
+        : Promise.resolve(jsonResponse(pageOf('Invoice'))),
+    )
+    const wrapper = mountApp()
+    await flushPromises()
+    await selectFirst(wrapper)
+
+    press('Delete')
+    await flushPromises()
+
+    const deleteCall = fetchMock.mock.calls.find(([url]) => (url as string).includes('/messages/delete'))
+    expect(deleteCall).toBeDefined()
+    expect(deleteCall![1].body).toContain('1')
+  })
+
+  it('does not send a delete when nothing is selected', async () => {
+    mountApp()
+    await flushPromises()
+
+    press('Delete')
+    await flushPromises()
+
+    expect(fetchMock.mock.calls.some(([url]) => (url as string).includes('/messages/delete'))).toBe(false)
+  })
+
+  /**
+   * Delete is destructive and the dialog is modal. Acting on the selection behind an overlay the
+   * user cannot see is precisely the thing a modal is supposed to prevent.
+   */
+  it('does not delete behind the release dialog', async () => {
+    const wrapper = mountApp()
+    await flushPromises()
+    await selectFirst(wrapper)
+    await wrapper.findAll('button').find((b) => b.text() === 'Release')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[role="dialog"]').exists()).toBe(true)
+
+    press('Delete')
+    await flushPromises()
+
+    expect(fetchMock.mock.calls.some(([url]) => (url as string).includes('/messages/delete'))).toBe(false)
+  })
+
+  it('does not delete while a request is in flight', async () => {
+    const wrapper = mountApp()
+    await flushPromises()
+    await selectFirst(wrapper)
+    let finish: (value: Response) => void = () => {}
+    fetchMock.mockImplementation(() => new Promise<Response>((resolve) => (finish = resolve)))
+    // Re-sorting is the shortest path to a request that stays in flight.
+    await wrapper.findAll('thead th button')[1].trigger('click')
+    await flushPromises()
+
+    press('Delete')
+    await flushPromises()
+    finish(jsonResponse(pageOf('Invoice')))
+    await flushPromises()
+
+    expect(fetchMock.mock.calls.some(([url]) => (url as string).includes('/messages/delete'))).toBe(false)
+  })
+})

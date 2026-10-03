@@ -76,6 +76,20 @@ const hasFilter = (): boolean =>
   receivedFrom.value.length > 0 ||
   receivedTo.value.length > 0
 
+/**
+ * Puts the caret in the subject box, for the `/` shortcut.
+ *
+ * <p>Exposed rather than reached for with a selector from outside, so the caller does not need
+ * to know what the field is called or that it is the first one. It focuses rather than selects:
+ * arriving with the previous search highlighted invites a paste over the top of it.
+ */
+function focusSubject(): void {
+  subjectInput.value?.focus()
+}
+
+const subjectInput = ref<HTMLInputElement | null>(null)
+defineExpose({ focusSubject })
+
 // A pending debounce would fire after the component went away and emit into nothing.
 onUnmounted(() => window.clearTimeout(timer))
 </script>
@@ -85,6 +99,7 @@ onUnmounted(() => window.clearTimeout(timer))
     <label class="grow">
       Subject
       <input
+        ref="subjectInput"
         v-model="subject"
         type="search"
         placeholder="Search subjects"

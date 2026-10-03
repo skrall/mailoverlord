@@ -17,6 +17,9 @@ import PaginationBar from './components/PaginationBar.vue'
 import ReleaseDialog from './components/ReleaseDialog.vue'
 import SplitPane from './components/SplitPane.vue'
 
+/** The filter bar, so the `/` shortcut can reach its subject box without a selector. */
+const filterBar = ref<InstanceType<typeof FilterBar> | null>(null)
+
 const page = ref(0)
 const size = ref(25)
 const sortField = ref('receivedTimestamp')
@@ -211,8 +214,60 @@ async function release(options: { overrideTo: string; overrideFrom: string }): P
   }
 }
 
+/**
+ * Whether the keypress is destined for somewhere the user is typing.
+ *
+ * <p>A shortcut has to keep its hands off text entry. Pressing `/` to jump to the search box is
+ * the point; pressing `/` while typing a date into the filter is a slash the user wants, and
+ * Delete while a filter box has a selection in it is a character they want gone. Without this
+ * the shortcuts would quietly eat input, which is worse than not having them.
+ */
+function isTyping(target: EventTarget | null): boolean {
+  const element = target
+  if (!(element instanceof HTMLElement)) {
+    return false
+  }
+  if (element.isContentEditable) {
+    return true
+  }
+  return ['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName)
+}
+
+/**
+ * The app-wide shortcuts.
+ *
+ * <p>Deliberately not bound with Vue's `@keydown` on a wrapper: those only fire when something
+ * inside is focused, and `/` has to work from a freshly loaded page where focus is still on the
+ * document body. A window listener is the only thing that covers every case.
+ */
+function onShortcut(event: KeyboardEvent): void {
+  if (event.metaKey || event.ctrlKey || event.altKey) {
+    return
+  }
+  // The dialog is modal. Anything the document would do behind it is exactly what it exists to
+  // prevent, and Delete is destructive.
+  if (showReleaseDialog.value) {
+    return
+  }
+  if (isTyping(event.target)) {
+    return
+  }
+
+  if (event.key === '/') {
+    event.preventDefault()
+    filterBar.value?.focusSubject()
+    return
+  }
+
+  if (event.key === 'Delete' && !busy.value && selectedIds.value.length > 0) {
+    event.preventDefault()
+    void removeSelected()
+  }
+}
+
 onMounted(() => {
   void load()
+  window.addEventListener('keydown', onShortcut)
   // Mail arrives over SMTP at any time, so poll to keep the table current. This is a tool for
   // watching a test environment, and a push channel is not worth the complexity here. The
   // interval is cleared in onUnmounted.
@@ -225,7 +280,10 @@ onMounted(() => {
   }, 10_000)
 })
 
-onUnmounted(() => window.clearInterval(pollTimer))
+onUnmounted(() => {
+  window.removeEventListener('keydown', onShortcut)
+  window.clearInterval(pollTimer)
+})
 </script>
 
 <template>
@@ -257,7 +315,12 @@ onUnmounted(() => window.clearInterval(pollTimer))
     <SplitPane>
       <template #primary>
         <section class="list">
-          <FilterBar :filter="filter" @editing="filterSettling = true" @change="applyFilter" />
+          <FilterBar
+            ref="filterBar"
+            :filter="filter"
+            @editing="filterSettling = true"
+            @change="applyFilter"
+          />
           <div class="scroll">
             <MessageTable
               :messages="messages"
