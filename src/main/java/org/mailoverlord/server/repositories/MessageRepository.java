@@ -33,7 +33,7 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
      * the column existed, which have no recorded size.
      */
     @Query("select new org.mailoverlord.server.model.MessageSummary("
-            + "m.id, m.from, m.to, m.receivedTimestamp, coalesce(m.sizeBytes, 0), m.subject) "
+            + "m.id, m.from, m.to, m.receivedTimestamp, m.releasedTimestamp, coalesce(m.sizeBytes, 0), m.subject) "
             + "from Message m")
     Page<MessageSummary> findSummaries(Pageable pageable);
 }

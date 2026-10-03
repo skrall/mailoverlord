@@ -62,6 +62,8 @@ public class MessageServiceImpl implements MessageService {
                 }
 
                 mailSender.send(message);
+                databaseMessage.setReleasedTimestamp(java.time.Instant.now());
+                messageRepository.save(databaseMessage);
             }
         } catch (Throwable t) {
             logger.error("Error while releasing message.", t);
@@ -89,6 +91,7 @@ public class MessageServiceImpl implements MessageService {
                 message.getFrom(),
                 message.getTo(),
                 message.getReceivedTimestamp(),
+                message.getReleasedTimestamp(),
                 message.getSubject(),
                 extractBody(message.getData()));
     }
