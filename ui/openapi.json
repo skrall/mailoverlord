@@ -213,6 +213,10 @@
             "type": "string",
             "format": "date-time"
           },
+          "releasedTimestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
           "subject": {
             "type": "string"
           },
@@ -256,6 +260,10 @@
             "type": "string"
           },
           "receivedTimestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "releasedTimestamp": {
             "type": "string",
             "format": "date-time"
           },

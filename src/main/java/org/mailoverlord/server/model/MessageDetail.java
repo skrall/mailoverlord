@@ -10,6 +10,7 @@ public record MessageDetail(
         String from,
         String to,
         Instant receivedTimestamp,
+        Instant releasedTimestamp,
         String subject,
         String body) {
 }

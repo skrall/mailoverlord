@@ -17,8 +17,12 @@ type Schema = components['schemas']
  */
 type Present<T> = { [K in keyof T]-?: NonNullable<T[K]> }
 
-export type MessageSummary = Present<Schema['MessageSummary']>
-export type MessageDetail = Present<Schema['MessageDetail']>
+export type MessageSummary = Omit<Present<Schema['MessageSummary']>, 'releasedTimestamp'> & {
+  releasedTimestamp: NonNullable<Schema['MessageSummary']['releasedTimestamp']> | null
+}
+export type MessageDetail = Omit<Present<Schema['MessageDetail']>, 'releasedTimestamp'> & {
+  releasedTimestamp: NonNullable<Schema['MessageDetail']['releasedTimestamp']> | null
+}
 
 /**
  * The page metadata still comes from the generated document; only the element type is
@@ -77,6 +81,7 @@ function normaliseSummary(summary: Schema['MessageSummary']): MessageSummary {
     from: summary.from ?? '',
     to: summary.to ?? '',
     receivedTimestamp: summary.receivedTimestamp ?? '',
+    releasedTimestamp: summary.releasedTimestamp ?? null,
     sizeBytes: summary.sizeBytes ?? 0,
     // A message is allowed to have no Subject header at all.
     subject: summary.subject ?? '',
@@ -108,6 +113,7 @@ export async function getMessage(id: number): Promise<MessageDetail> {
     from: message.from ?? '',
     to: message.to ?? '',
     receivedTimestamp: message.receivedTimestamp ?? '',
+    releasedTimestamp: message.releasedTimestamp ?? null,
     subject: message.subject ?? '',
     body: message.body ?? '',
   }
