@@ -33,11 +33,30 @@ export type MessagePage = Present<Omit<Schema['PageResponseMessageSummary'], 'co
   content: MessageSummary[]
 }
 
-export interface MessagePageRequest {
+/**
+ * The criteria narrowing a listing, as the server understands them.
+ *
+ * <p>Every field is optional and an absent one means "do not filter on this". Empty strings are
+ * dropped when the request is built rather than sent as `?subject=`: the server treats blank as
+ * absent, but not sending them at all keeps the unfiltered URL identical to the one the app used
+ * before search existed, which is easier to read in a log.
+ */
+export interface MessageFilterRequest {
+  subject?: string
+  from?: string
+  to?: string
+  receivedFrom?: string
+  receivedTo?: string
+}
+
+export interface MessagePageRequest extends MessageFilterRequest {
   page: number
   size: number
   sort?: string
 }
+
+/** The filter fields, in the order {@link listMessages} writes them. */
+const FILTER_FIELDS: (keyof MessageFilterRequest)[] = ['subject', 'from', 'to', 'receivedFrom', 'receivedTo']
 
 export type ReleaseRequest = {
   messageIds: number[]
@@ -92,6 +111,14 @@ export async function listMessages(pageRequest: MessagePageRequest): Promise<Mes
   const query = new URLSearchParams({ page: String(pageRequest.page), size: String(pageRequest.size) })
   if (pageRequest.sort) {
     query.set('sort', pageRequest.sort)
+  }
+  for (const field of FILTER_FIELDS) {
+    const value = pageRequest[field]
+    // A whitespace-only box means "no filter" too, so it is dropped here as well as on the
+    // server. Sending it would produce a filter that matches everything while looking active.
+    if (value && value.trim().length > 0) {
+      query.set(field, value.trim())
+    }
   }
 
   const page = await request<Schema['PageResponseMessageSummary']>(`/messages/list?${query}`)

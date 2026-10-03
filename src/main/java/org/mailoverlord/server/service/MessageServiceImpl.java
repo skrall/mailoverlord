@@ -12,6 +12,7 @@ import jakarta.mail.internet.MimeMessage;
 import org.mailoverlord.server.entities.Message;
 import org.mailoverlord.server.model.MessageDeleteRequest;
 import org.mailoverlord.server.model.MessageDetail;
+import org.mailoverlord.server.model.MessageFilter;
 import org.mailoverlord.server.model.MessageReleaseRequest;
 import org.mailoverlord.server.model.MessageSummary;
 import org.mailoverlord.server.model.PageResponse;
@@ -77,8 +78,14 @@ public class MessageServiceImpl implements MessageService {
     }
 
     @Override
-    public PageResponse<MessageSummary> listMessages(Pageable pageable) {
-        return PageResponse.from(messageRepository.findSummaries(pageable));
+    public PageResponse<MessageSummary> listMessages(Pageable pageable, MessageFilter filter) {
+        return PageResponse.from(messageRepository.findSummaries(
+                filter.subject(),
+                filter.from(),
+                filter.to(),
+                filter.receivedFrom(),
+                filter.receivedTo(),
+                pageable));
     }
 
     @Override

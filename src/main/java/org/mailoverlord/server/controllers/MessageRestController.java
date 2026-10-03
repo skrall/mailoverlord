@@ -2,10 +2,12 @@ package org.mailoverlord.server.controllers;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import java.time.Instant;
 import java.util.List;
 import java.util.Set;
 import org.mailoverlord.server.model.MessageDeleteRequest;
 import org.mailoverlord.server.model.MessageDetail;
+import org.mailoverlord.server.model.MessageFilter;
 import org.mailoverlord.server.model.MessageReleaseRequest;
 import org.mailoverlord.server.model.MessageResponse;
 import org.mailoverlord.server.model.MessageSummary;
@@ -17,12 +19,14 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -47,13 +51,40 @@ public class MessageRestController {
         this.messageService = messageService;
     }
 
+    /**
+     * Lists messages, optionally narrowed by a filter.
+     *
+     * <p>Each criterion is applied by the database and omitted from the {@code where} clause
+     * when absent, so an unfiltered request behaves exactly as it did before filtering existed.
+     * The criteria are combined with AND: a message has to satisfy all of them to appear.
+     *
+     * <p>The timestamps are inclusive at both ends, so {@code receivedFrom} and
+     * {@code receivedTo} set to the same instant match a message that arrived exactly then. That
+     * suits the way the UI fills the fields in, which is to the resolution the user picked rather
+     * than to a whole day.
+     *
+     * <p>A malformed timestamp is a 400 from the converter rather than a silent no-match, which is
+     * the honest answer for a request the server could not understand.
+     */
     @Operation(summary = "List captured messages", description = "Returns one page of message "
             + "summaries. Each summary omits the message body; use getMessage for that. "
-            + "Sort by receivedTimestamp, from, to or subject.")
+            + "Sort by receivedTimestamp, from, to or subject. Every filter is optional, "
+            + "matching on a case-insensitive substring, and they are combined with AND. "
+            + "receivedFrom and receivedTo are inclusive ISO-8601 instants bounding when the "
+            + "mail arrived. The total reflects the filter, not the whole mailbox.")
     @GetMapping(value = "/messages/list", produces = MediaType.APPLICATION_JSON_VALUE)
-    public PageResponse<MessageSummary> getTableData(@PageableDefault(size = 25,
-            sort = "receivedTimestamp", direction = Sort.Direction.DESC) Pageable pageable) {
-        return messageService.listMessages(sorted(pageable));
+    public PageResponse<MessageSummary> getTableData(
+            @PageableDefault(size = 25,
+                    sort = "receivedTimestamp", direction = Sort.Direction.DESC) Pageable pageable,
+            @RequestParam(required = false) String subject,
+            @RequestParam(required = false) String from,
+            @RequestParam(required = false) String to,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            Instant receivedFrom,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
+            Instant receivedTo) {
+        return messageService.listMessages(sorted(pageable),
+                new MessageFilter(subject, from, to, receivedFrom, receivedTo));
     }
 
     /**

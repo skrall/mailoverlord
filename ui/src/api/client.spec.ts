@@ -57,6 +57,68 @@ describe('listMessages', () => {
   })
 
   /**
+   * The filter parameters have to reach the server as query parameters, because the filtering
+   * happens there. Filtering the returned page instead would hide matches on later pages while
+   * looking like a complete answer.
+   */
+  it('sends every filter criterion as a query parameter', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ content: [] }))
+
+    await listMessages({
+      page: 0,
+      size: 25,
+      subject: 'invoice',
+      from: 'alice',
+      to: 'bob',
+      receivedFrom: '2024-03-01T00:00:00.000Z',
+      receivedTo: '2024-03-02T00:00:00.000Z',
+    })
+
+    const url = fetchMock.mock.calls[0][0] as string
+    expect(url).toContain('subject=invoice')
+    expect(url).toContain('from=alice')
+    expect(url).toContain('to=bob')
+    expect(url).toContain('receivedFrom=2024-03-01T00%3A00%3A00.000Z')
+    expect(url).toContain('receivedTo=2024-03-02T00%3A00%3A00.000Z')
+  })
+
+  /**
+   * An empty box means "no filter". Sending `?subject=` anyway would produce a URL that reads as
+   * filtered, and it would not match the request the app made before search existed.
+   */
+  it('omits blank and whitespace-only criteria', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ content: [] }))
+
+    await listMessages({ page: 0, size: 25, subject: '', from: '   ', to: undefined })
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/messages/list?page=0&size=25',
+      expect.objectContaining({ headers: { Accept: 'application/json' } }),
+    )
+  })
+
+  it('trims a criterion before sending it', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ content: [] }))
+
+    await listMessages({ page: 0, size: 25, subject: '  invoice  ' })
+
+    expect(fetchMock.mock.calls[0][0]).toContain('subject=invoice')
+    expect(fetchMock.mock.calls[0][0]).not.toContain('%20invoice')
+  })
+
+  it('combines the filter with paging and sorting', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ content: [] }))
+
+    await listMessages({ page: 1, size: 10, sort: 'subject,asc', subject: 'invoice' })
+
+    const url = fetchMock.mock.calls[0][0] as string
+    expect(url).toContain('page=1')
+    expect(url).toContain('size=10')
+    expect(url).toContain('sort=subject%2Casc')
+    expect(url).toContain('subject=invoice')
+  })
+
+  /**
    * Every property of a record arrives as optional, so the page metadata has to be defaulted
    * too or the pagination bar renders blanks.
    */

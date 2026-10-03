@@ -6,10 +6,12 @@ import {
   listMessages,
   releaseMessages,
   type MessageDetail,
+  type MessageFilterRequest,
   type MessagePage,
   type MessageSummary,
 } from './api/client'
 import MessageDetailPanel from './components/MessageDetail.vue'
+import FilterBar from './components/FilterBar.vue'
 import MessageTable from './components/MessageTable.vue'
 import PaginationBar from './components/PaginationBar.vue'
 import ReleaseDialog from './components/ReleaseDialog.vue'
@@ -23,6 +25,14 @@ const sortDirection = ref<'asc' | 'desc'>('desc')
 const messages = ref<MessageSummary[]>([])
 const totalElements = ref(0)
 const totalPages = ref(0)
+const filter = ref<MessageFilterRequest>({})
+/**
+ * True between a keystroke in the filter box and the debounced request it triggers.
+ *
+ * <p>The poll is held off while this is set. Reloading mid-word would re-filter the list by a
+ * half-typed subject, which both wastes a request and replaces the rows under the cursor.
+ */
+const filterSettling = ref(false)
 
 const selectedIds = ref<number[]>([])
 const activeId = ref<number | null>(null)
@@ -32,6 +42,14 @@ const busy = ref(false)
 const showReleaseDialog = ref(false)
 const error = ref<string | null>(null)
 let pollTimer = 0
+/**
+ * Identifies the most recent list request, so a slower earlier one cannot overwrite it.
+ *
+ * <p>Two requests can be in flight at once: the debounced filter request and the poll that was
+ * already on the wire when the filter changed. Whichever answers last used to win, so the list
+ * could settle on results for a filter the user had already moved on from.
+ */
+let latestLoad = 0
 
 function closeDetail(): void {
   activeId.value = null
@@ -47,6 +65,7 @@ const allSelected = computed(
 )
 
 async function load(): Promise<void> {
+  const request = ++latestLoad
   busy.value = true
   error.value = null
   try {
@@ -54,7 +73,13 @@ async function load(): Promise<void> {
       page: page.value,
       size: size.value,
       sort: `${sortField.value},${sortDirection.value}`,
+      ...filter.value,
     })
+    // A newer request has already been issued, so this answer is stale; applying it would
+    // show rows for criteria the user has since changed.
+    if (request !== latestLoad) {
+      return
+    }
     messages.value = result.content
     totalElements.value = result.totalElements
     totalPages.value = result.totalPages
@@ -67,10 +92,32 @@ async function load(): Promise<void> {
       detail.value = null
     }
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : String(cause)
+    // A superseded request has nothing useful to say: its failure belongs to a filter the
+    // user has already moved on from, and reporting it would blame the current one.
+    if (request === latestLoad) {
+      error.value = cause instanceof Error ? cause.message : String(cause)
+    }
   } finally {
-    busy.value = false
+    // Only the newest request owns the busy flag, otherwise the first one to finish would
+    // clear it while the second is still in flight.
+    if (request === latestLoad) {
+      busy.value = false
+    }
   }
+}
+
+/**
+ * Applies a settled filter and reloads.
+ *
+ * <p>Returns to the first page, because the page someone was on may not exist under the new
+ * criteria: page 5 of a list that now has two pages is an empty table that looks like the
+ * filter found nothing.
+ */
+function applyFilter(next: MessageFilterRequest): void {
+  filter.value = next
+  filterSettling.value = false
+  page.value = 0
+  void load()
 }
 
 async function open(id: number): Promise<void> {
@@ -170,7 +217,9 @@ onMounted(() => {
   // watching a test environment, and a push channel is not worth the complexity here. The
   // interval is cleared in onUnmounted.
   pollTimer = window.setInterval(() => {
-    if (!busy.value && !showReleaseDialog.value) {
+    // filterSettling holds the poll off while a filter edit is waiting on its debounce, so
+    // the list cannot be swapped out from under someone who is still typing.
+    if (!busy.value && !showReleaseDialog.value && !filterSettling.value) {
       void load()
     }
   }, 10_000)
@@ -208,6 +257,7 @@ onUnmounted(() => window.clearInterval(pollTimer))
     <SplitPane>
       <template #primary>
         <section class="list">
+          <FilterBar :filter="filter" @editing="filterSettling = true" @change="applyFilter" />
           <div class="scroll">
             <MessageTable
               :messages="messages"
