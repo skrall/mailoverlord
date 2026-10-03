@@ -57,7 +57,7 @@
             Node is downloaded by the build rather than taken from the machine, so that
             `mvn verify` produces the same UI everywhere. 22 is the current LTS line.
         -->
-        <node.version>v24.21.0</node.version>
+        <node.version>v22.14.0</node.version>
         <!-- Set to true to build the Java side without rebuilding the UI. -->
         <skip.ui>false</skip.ui>
     </properties>
