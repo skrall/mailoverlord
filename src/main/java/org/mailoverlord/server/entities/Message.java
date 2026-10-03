@@ -28,6 +28,7 @@ public class Message {
     private String to = "";
     private String subject;
     private byte[] data;
+    private long sizeBytes;
     private Instant receivedTimestamp;
 
     @Id
@@ -111,6 +112,34 @@ public class Message {
 
     public void setData(byte[] data) {
         this.data = data;
+        this.sizeBytes = data == null ? 0 : data.length;
+    }
+
+    /**
+     * The size of {@link #getData()} in bytes, recorded when the data is set.
+     *
+     * <p>This is derived rather than passed in, so it cannot drift from the blob. It exists
+     * because the message table displays the size of every message it lists, and computing it
+     * in SQL is not portable: {@code length} counts characters on some databases and bytes on
+     * others, and Hibernate rejects {@code octet_length} on a BLOB. Reading the blob to measure
+     * it instead would mean the list endpoint loads every message in full, which the table
+     * exists specifically to avoid.
+     *
+     * <p>Rows written before this column existed have no value, which is why the summary query
+     * coalesces it rather than trusting it to be present.
+     */
+    @Column(name = "SIZE_BYTES")
+    public long getSizeBytes() {
+        return sizeBytes;
+    }
+
+    /**
+     * Used by Hibernate when it reads a row, and private so that nothing else can: the size is
+     * derived in {@link #setData(byte[])}, and letting callers assign it separately is exactly
+     * how the recorded value and the blob would drift apart.
+     */
+    private void setSizeBytes(long sizeBytes) {
+        this.sizeBytes = sizeBytes;
     }
 
     @Column(name = "RECEIVED_TIMESTAMP")

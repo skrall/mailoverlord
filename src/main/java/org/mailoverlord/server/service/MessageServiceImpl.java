@@ -76,7 +76,7 @@ public class MessageServiceImpl implements MessageService {
 
     @Override
     public PageResponse<MessageSummary> listMessages(Pageable pageable) {
-        return PageResponse.from(messageRepository.findAll(pageable).map(this::toSummary));
+        return PageResponse.from(messageRepository.findSummaries(pageable));
     }
 
     @Override
@@ -91,17 +91,6 @@ public class MessageServiceImpl implements MessageService {
                 message.getReceivedTimestamp(),
                 message.getSubject(),
                 extractBody(message.getData()));
-    }
-
-    private MessageSummary toSummary(Message message) {
-        byte[] data = message.getData();
-        return new MessageSummary(
-                message.getId(),
-                message.getFrom(),
-                message.getTo(),
-                message.getReceivedTimestamp(),
-                data == null ? 0 : data.length,
-                message.getSubject());
     }
 
     private String extractBody(byte[] data) {
