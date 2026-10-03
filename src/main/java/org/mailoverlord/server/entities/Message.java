@@ -30,6 +30,7 @@ public class Message {
     private byte[] data;
     private long sizeBytes;
     private Instant receivedTimestamp;
+    private Instant releasedTimestamp;
 
     @Id
     @GeneratedValue
@@ -169,6 +170,15 @@ public class Message {
 
     public void setReceivedTimestamp(Instant receivedTimestamp) {
         this.receivedTimestamp = receivedTimestamp;
+    }
+
+    @Column(name = "RELEASED_TIMESTAMP")
+    public Instant getReleasedTimestamp() {
+        return releasedTimestamp;
+    }
+
+    public void setReleasedTimestamp(Instant releasedTimestamp) {
+        this.releasedTimestamp = releasedTimestamp;
     }
 
     @PrePersist

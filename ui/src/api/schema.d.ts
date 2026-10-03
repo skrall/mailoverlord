@@ -109,6 +109,8 @@ export interface components {
             to?: string;
             /** Format: date-time */
             receivedTimestamp?: string;
+            /** Format: date-time */
+            releasedTimestamp?: string;
             subject?: string;
             body?: string;
         };
@@ -126,6 +128,8 @@ export interface components {
             to?: string;
             /** Format: date-time */
             receivedTimestamp?: string;
+            /** Format: date-time */
+            releasedTimestamp?: string;
             /** Format: int64 */
             sizeBytes?: number;
             subject?: string;

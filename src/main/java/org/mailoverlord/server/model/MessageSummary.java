@@ -14,6 +14,7 @@ public record MessageSummary(
         String from,
         String to,
         Instant receivedTimestamp,
+        Instant releasedTimestamp,
         long sizeBytes,
         String subject) {
 }
