@@ -1,1 +1,314 @@
-{"openapi":"3.1.0","info":{"title":"OpenAPI definition","version":"v0"},"servers":[{"url":"http://localhost:8150","description":"Generated server url"}],"tags":[{"name":"Messages","description":"Browse and act on captured mail"}],"paths":{"/messages/release":{"post":{"tags":["Messages"],"summary":"Release messages","description":"Forwards the given messages to the configured SMTP server, optionally overriding the from and to addresses.","operationId":"releaseMessages","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/MessageReleaseRequest"}}},"required":true},"responses":{"200":{"description":"OK","content":{"application/json":{"schema":{"$ref":"#/components/schemas/MessageResponse"}}}}}}},"/messages/delete":{"post":{"tags":["Messages"],"summary":"Delete messages","description":"Permanently removes the given messages.","operationId":"deleteMessages","requestBody":{"content":{"application/json":{"schema":{"$ref":"#/components/schemas/MessageDeleteRequest"}}},"required":true},"responses":{"200":{"description":"OK","content":{"application/json":{"schema":{"$ref":"#/components/schemas/MessageResponse"}}}}}}},"/messages/{id}":{"get":{"tags":["Messages"],"summary":"Get one message","description":"Returns a single message in full, including its text body.","operationId":"getMessage","parameters":[{"name":"id","in":"path","required":true,"schema":{"type":"integer","format":"int64"}}],"responses":{"200":{"description":"OK","content":{"application/json":{"schema":{"$ref":"#/components/schemas/MessageDetail"}}}}}}},"/messages/list":{"get":{"tags":["Messages"],"summary":"List captured messages","description":"Returns one page of message summaries. Each summary omits the message body; use getMessage for that. Sort by receivedTimestamp, from, to or subject.","operationId":"getTableData","parameters":[{"name":"pageable","in":"query","required":true,"schema":{"$ref":"#/components/schemas/Pageable"}}],"responses":{"200":{"description":"OK","content":{"application/json":{"schema":{"$ref":"#/components/schemas/PageResponseMessageSummary"}}}}}}}},"components":{"schemas":{"MessageReleaseRequest":{"type":"object","properties":{"messageIds":{"type":"array","items":{"type":"integer","format":"int64"}},"overrideTo":{"type":"boolean"},"overrideToAddresses":{"type":"string"},"overrideFrom":{"type":"boolean"},"overrideFromAddress":{"type":"string"}}},"MessageResponse":{"type":"object","properties":{"successful":{"type":"boolean"},"errorMessage":{"type":"string"}}},"MessageDeleteRequest":{"type":"object","properties":{"messageIds":{"type":"array","items":{"type":"integer","format":"int64"}}}},"MessageDetail":{"type":"object","properties":{"id":{"type":"integer","format":"int64"},"from":{"type":"string"},"to":{"type":"string"},"receivedTimestamp":{"type":"string","format":"date-time"},"releasedTimestamp":{"type":"string","format":"date-time"},"subject":{"type":"string"},"body":{"type":"string"}}},"Pageable":{"type":"object","properties":{"page":{"type":"integer","format":"int32","minimum":0},"size":{"type":"integer","format":"int32","minimum":1},"sort":{"type":"array","items":{"type":"string"}}}},"MessageSummary":{"type":"object","properties":{"id":{"type":"integer","format":"int64"},"from":{"type":"string"},"to":{"type":"string"},"receivedTimestamp":{"type":"string","format":"date-time"},"releasedTimestamp":{"type":"string","format":"date-time"},"sizeBytes":{"type":"integer","format":"int64"},"subject":{"type":"string"}}},"PageResponseMessageSummary":{"type":"object","properties":{"content":{"type":"array","items":{"$ref":"#/components/schemas/MessageSummary"}},"number":{"type":"integer","format":"int32"},"size":{"type":"integer","format":"int32"},"totalElements":{"type":"integer","format":"int64"},"totalPages":{"type":"integer","format":"int32"},"first":{"type":"boolean"},"last":{"type":"boolean"}}}}}}
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "OpenAPI definition",
+    "version": "v0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Generated server url"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Messages",
+      "description": "Browse and act on captured mail"
+    }
+  ],
+  "paths": {
+    "/messages/release": {
+      "post": {
+        "tags": [
+          "Messages"
+        ],
+        "summary": "Release messages",
+        "description": "Forwards the given messages to the configured SMTP server, optionally overriding the from and to addresses.",
+        "operationId": "releaseMessages",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MessageReleaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/messages/delete": {
+      "post": {
+        "tags": [
+          "Messages"
+        ],
+        "summary": "Delete messages",
+        "description": "Permanently removes the given messages.",
+        "operationId": "deleteMessages",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MessageDeleteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/messages/{id}": {
+      "get": {
+        "tags": [
+          "Messages"
+        ],
+        "summary": "Get one message",
+        "description": "Returns a single message in full, including its text body.",
+        "operationId": "getMessage",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageDetail"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/messages/list": {
+      "get": {
+        "tags": [
+          "Messages"
+        ],
+        "summary": "List captured messages",
+        "description": "Returns one page of message summaries. Each summary omits the message body; use getMessage for that. Sort by receivedTimestamp, from, to or subject.",
+        "operationId": "getTableData",
+        "parameters": [
+          {
+            "name": "pageable",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Pageable"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PageResponseMessageSummary"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "MessageReleaseRequest": {
+        "type": "object",
+        "properties": {
+          "messageIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "overrideTo": {
+            "type": "boolean"
+          },
+          "overrideToAddresses": {
+            "type": "string"
+          },
+          "overrideFrom": {
+            "type": "boolean"
+          },
+          "overrideFromAddress": {
+            "type": "string"
+          }
+        }
+      },
+      "MessageResponse": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string"
+          }
+        }
+      },
+      "MessageDeleteRequest": {
+        "type": "object",
+        "properties": {
+          "messageIds": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        }
+      },
+      "MessageDetail": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "receivedTimestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "releasedTimestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          }
+        }
+      },
+      "Pageable": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 1
+          },
+          "sort": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "MessageSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          },
+          "receivedTimestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "releasedTimestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "subject": {
+            "type": "string"
+          }
+        }
+      },
+      "PageResponseMessageSummary": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessageSummary"
+            }
+          },
+          "number": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalElements": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "first": {
+            "type": "boolean"
+          },
+          "last": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}
