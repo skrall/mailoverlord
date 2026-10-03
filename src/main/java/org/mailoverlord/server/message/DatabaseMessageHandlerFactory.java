@@ -66,7 +66,6 @@ public class DatabaseMessageHandlerFactory implements MessageHandlerFactory {
         public String data(InputStream data) throws RejectException, TooMuchDataException, IOException {
             logger.debug("Got Data....");
             byte[] dataArray = readBounded(data);
-            logger.debug("Data: {}", new String(dataArray, StandardCharsets.UTF_8));
             message.setData(dataArray);
             // Pulled out of the MIME here rather than at read time so the table can sort on
             // it: the database cannot read a header out of the raw message, and ordering has
