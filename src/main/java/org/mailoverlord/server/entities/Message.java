@@ -47,8 +47,17 @@ public class Message {
         return from;
     }
 
+    /**
+     * Truncates if too long. The sender chooses the address, and a single absurdly long address
+     * is not reason to drop the whole message: the schema would reject it anyway, so truncate
+     * gracefully instead.
+     */
     public void setFrom(String from) {
-        this.from = from;
+        if (from != null && from.length() > MAX_ADDRESS_LENGTH) {
+            this.from = from.substring(0, MAX_ADDRESS_LENGTH);
+        } else {
+            this.from = from;
+        }
     }
 
     @Column(name = "TO_ADDRESSES", length = MAX_ADDRESS_LENGTH)
@@ -64,7 +73,18 @@ public class Message {
         if (this.to != null && !this.to.isEmpty()) {
             this.to += ",";
         }
-        this.to += to;
+        String candidate = this.to + to;
+        if (candidate.length() > MAX_ADDRESS_LENGTH) {
+            if (this.to.length() >= MAX_ADDRESS_LENGTH) {
+                return;
+            }
+            this.to = this.to.substring(0, MAX_ADDRESS_LENGTH - 1);
+            if (!this.to.endsWith(",")) {
+                this.to = this.to + ",";
+            }
+            return;
+        }
+        this.to = candidate;
     }
 
     /**
