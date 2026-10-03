@@ -154,3 +154,42 @@ describe('FilterBar', () => {
     }
   })
 })
+describe('focusSubject', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    document.body.innerHTML = ''
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  /**
+   * The entry point for the `/` shortcut. It focuses rather than selects, because arriving at a
+   * box with its previous contents highlighted invites a paste over the top of it.
+   */
+  it('puts the caret in the subject box', () => {
+    const wrapper = mount(FilterBar, { attachTo: document.body, props: { filter: {} } })
+
+    wrapper.vm.focusSubject()
+
+    expect(document.activeElement).toBe(wrapper.find('input[type="search"]').element)
+  })
+
+  it('leaves the existing search unselected so it can be extended', async () => {
+    const wrapper = mount(FilterBar, { attachTo: document.body, props: { filter: {} } })
+    await wrapper.findAll('input')[0].setValue('invoice')
+    vi.advanceTimersByTime(300)
+
+    wrapper.vm.focusSubject()
+
+    expect((document.activeElement as HTMLInputElement).selectionStart).toBe(7)
+  })
+
+  it('does not throw once the component has gone', () => {
+    const wrapper = mount(FilterBar, { attachTo: document.body, props: { filter: {} } })
+    wrapper.unmount()
+
+    expect(() => wrapper.vm.focusSubject()).not.toThrow()
+  })
+})
