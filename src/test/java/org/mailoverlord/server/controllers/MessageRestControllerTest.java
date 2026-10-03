@@ -131,10 +131,6 @@ class MessageRestControllerTest extends AbstractMailoverlordIntegrationTest {
     }
 
     /**
-     * Mail with no subject is ordinary, not exceptional, so it has to survive the sort
-     * alongside everything else instead of blowing up or being silently dropped.
-     */
-    /**
      * Mail with no subject is ordinary, not exceptional, so it has to survive a sort by
      * subject alongside everything else instead of failing or being dropped. Which of the two
      * rows leads is left open on purpose: where a missing value falls in an ascending sort is
