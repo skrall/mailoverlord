@@ -21,7 +21,20 @@ function jsonResponse(body: unknown, status = 200): Response {
     ok: status >= 200 && status < 300,
     status,
     json: async () => body,
-  } as Response
+    // The error path reads the body as text and parses it, so a mock that only answers json()
+    // would fail for the wrong reason.
+    text: async () => JSON.stringify(body),
+  } as unknown as Response
+}
+
+/** An error body that is not JSON at all, which is what a proxy in front of the app sends. */
+function textResponse(body: string, status: number): Response {
+  return {
+    ok: false,
+    status,
+    json: async () => JSON.parse(body),
+    text: async () => body,
+  } as unknown as Response
 }
 
 beforeEach(() => {
@@ -292,16 +305,53 @@ describe('request failures', () => {
 
   /**
    * A rejected request comes back as problem details, and the detail is the only part of it a
-   * person can act on. Reporting "failed with 400" instead is what made a missing override
-   * address look like an unexplained failure.
+   * person can act on. Reporting the status alone is what made a missing override address look
+   * like an unexplained failure. See #14.
    */
   it('uses the explanation the server sent rather than the status alone', async () => {
-    const detail = 'overrideToAddresses must name at least one address when overrideTo is true.'
-    fetchMock.mockResolvedValue(jsonResponse({ detail }, 400))
+    fetchMock.mockResolvedValue(
+      jsonResponse({ detail: 'overrideToAddresses must name at least one address when overrideTo is true.' }, 400),
+    )
 
     await expect(releaseMessages({ messageIds: [1], overrideTo: true })).rejects.toMatchObject({
-      message: detail,
+      message:
+        'POST /messages/release failed with 400: overrideToAddresses must name at least one address when overrideTo is true.',
       status: 400,
+    })
+  })
+
+  /**
+   * The status and the request say the call failed, which is useful and worth keeping whatever
+   * else the body turned out to contain.
+   */
+  it('keeps the status in the message alongside the explanation', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ title: 'Not Found' }, 404))
+
+    await expect(getMessage(99)).rejects.toMatchObject({
+      message: 'GET /messages/99 failed with 404: Not Found',
+      status: 404,
+    })
+  })
+
+  it('reports a plain-text error body from a proxy', async () => {
+    fetchMock.mockResolvedValue(textResponse('upstream connect error', 502))
+
+    await expect(listMessages({ page: 0, size: 25 })).rejects.toMatchObject({
+      message: 'GET /messages/list?page=0&size=25 failed with 502: upstream connect error',
+      status: 502,
+    })
+  })
+
+  /**
+   * A gateway error page is not an explanation, and it would otherwise become the text of a
+   * one-line banner.
+   */
+  it('leaves an html error page out of the message', async () => {
+    fetchMock.mockResolvedValue(textResponse('<html><body>502 Bad Gateway</body></html>', 502))
+
+    await expect(getMessage(99)).rejects.toMatchObject({
+      message: 'GET /messages/99 failed with 502',
+      status: 502,
     })
   })
 
@@ -318,14 +368,8 @@ describe('request failures', () => {
    * A body is not guaranteed. A proxy can answer with HTML and a crash can write nothing, so
    * reading the detail must not turn one failure into another.
    */
-  it('still reports the status when the failure body is not json', async () => {
-    fetchMock.mockResolvedValue({
-      ok: false,
-      status: 502,
-      json: async () => {
-        throw new SyntaxError('Unexpected token <')
-      },
-    } as unknown as Response)
+  it('still reports the status when the failure has no body at all', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 502, text: async () => '' } as unknown as Response)
 
     await expect(getMessage(99)).rejects.toMatchObject({
       message: 'GET /messages/99 failed with 502',

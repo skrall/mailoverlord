@@ -103,35 +103,58 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
 
   if (!response.ok) {
-    throw new ApiError(
-      (await problemDetail(response)) ?? `${init?.method ?? 'GET'} ${path} failed with ${response.status}`,
-      response.status,
-    )
+    const failure = `${init?.method ?? 'GET'} ${path} failed with ${response.status}`
+    const reason = await explanation(response)
+    throw new ApiError(reason ? `${failure}: ${reason}` : failure, response.status)
   }
 
   return (await response.json()) as T
 }
+
+/** Longer than this in a one-line banner is noise rather than an explanation. */
+const MAX_EXPLANATION = 200
 
 /**
  * What the server said was wrong, if it said anything.
  *
  * <p>A rejected request comes back as RFC 9457 problem details, and its `detail` is the only part
  * a person can act on: "overrideToAddresses must name at least one address when overrideTo is
- * true" says what to change, where "POST /messages/release failed with 400" says only that
- * something happened. Prefers `detail`, falling back to `title` for a problem that has one.
+ * true" says what to change, where "failed with 400" says only that something happened.
+ *
+ * <p>The body is read as text and parsed rather than read as JSON, because a body is not
+ * guaranteed to be JSON. This is the one place an error body is consumed, so reading it twice
+ * would not work; reading it once as text and trying to parse handles both shapes.
  */
-async function problemDetail(response: Response): Promise<string | null> {
+async function explanation(response: Response): Promise<string | null> {
+  const body = await response.text()
+  if (body.trim() === '') {
+    return null
+  }
   try {
-    const problem = (await response.json()) as { detail?: unknown; title?: unknown }
+    const problem = JSON.parse(body) as { detail?: unknown; title?: unknown }
     if (typeof problem.detail === 'string' && problem.detail !== '') {
       return problem.detail
     }
+    // A problem detail with no detail of its own still carries a title worth showing.
     return typeof problem.title === 'string' && problem.title !== '' ? problem.title : null
   } catch {
-    // A body is not guaranteed: a proxy can fail, a crash writes HTML, and an empty body is not
-    // JSON. None of that is worth reporting over the failure itself.
+    return proseFrom(body)
+  }
+}
+
+/**
+ * A plain-text error body, which is what a reverse proxy in front of the app tends to produce.
+ *
+ * <p>Markup is left out rather than shown. A gateway's error page is not an explanation, and
+ * dropping one into a single-line banner helps nobody; the status and the request already say the
+ * call failed, which is the part a person can act on.
+ */
+function proseFrom(body: string): string | null {
+  const text = body.trim()
+  if (text.startsWith('<')) {
     return null
   }
+  return text.length > MAX_EXPLANATION ? `${text.slice(0, MAX_EXPLANATION)}...` : text
 }
 
 function normaliseSummary(summary: Schema['MessageSummary']): MessageSummary {
