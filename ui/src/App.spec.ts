@@ -40,6 +40,9 @@ function pageOf(subject: string, totalPages = 1): unknown {
 let mounted: VueWrapper | undefined
 
 beforeEach(() => {
+  // The split pane remembers its divider and the filter pane remembers whether it was open, so
+  // without this a test that moves either one decides what the next test starts with.
+  localStorage.clear()
   vi.useFakeTimers()
   fetchMock.mockReset()
   fetchMock.mockResolvedValue(jsonResponse(pageOf('Invoice')))
@@ -66,6 +69,35 @@ function subjectInput(wrapper: VueWrapper) {
 
 function lastRequest(): string {
   return fetchMock.mock.calls.at(-1)![0] as string
+}
+
+
+
+/** Selects the first row the way a user would, since selection is not a prop of App. */
+async function selectFirst(wrapper: VueWrapper): Promise<void> {
+  await wrapper.find('#message-row-1 input[type="checkbox"]').setValue(true)
+  await flushPromises()
+}
+
+/** Fails every release, which is how the server explains a rejected override. */
+function failReleases(detail: string): void {
+  fetchMock.mockImplementation((url: string) =>
+    url.includes('/messages/release')
+      ? Promise.resolve(jsonResponse({ detail }, 400))
+      : Promise.resolve(jsonResponse(pageOf('Invoice'))),
+  )
+}
+
+/** Releases the selection, whatever it takes to get there. */
+async function releaseSelection(wrapper: VueWrapper): Promise<void> {
+  await wrapper.findAll('button').find((b) => b.text() === 'Release')!.trigger('click')
+  await flushPromises()
+  await wrapper.find('[role="dialog"]').trigger('submit')
+  await flushPromises()
+}
+
+function banner(wrapper: VueWrapper): string {
+  return wrapper.find('[role="alert"]').exists() ? wrapper.find('[role="alert"]').text() : ''
 }
 
 function buttonLabelled(wrapper: VueWrapper, label: string) {
@@ -221,38 +253,14 @@ describe('app shortcuts', () => {
     return event
   }
 
-  /** Selects the first row the way a user would, since selection is not a prop of App. */
-  async function selectFirst(wrapper: VueWrapper): Promise<void> {
-    await wrapper.find('#message-row-1 input[type="checkbox"]').setValue(true)
-    await flushPromises()
-  }
-
-  /** Fails every release, which is how the server explains a rejected override. */
-  function failReleases(detail: string): void {
-    fetchMock.mockImplementation((url: string) =>
-      url.includes('/messages/release')
-        ? Promise.resolve(jsonResponse({ detail }, 400))
-        : Promise.resolve(jsonResponse(pageOf('Invoice'))),
-    )
-  }
-
-  /** Releases the selection, whatever it takes to get there. */
-  async function releaseSelection(wrapper: VueWrapper): Promise<void> {
-    await wrapper.findAll('button').find((b) => b.text() === 'Release')!.trigger('click')
-    await flushPromises()
-    await wrapper.find('[role="dialog"]').trigger('submit')
-    await flushPromises()
-  }
-
-  function banner(wrapper: VueWrapper): string {
-    return wrapper.find('[role="alert"]').exists() ? wrapper.find('[role="alert"]').text() : ''
-  }
-
   it('focuses the search box on /', async () => {
     const wrapper = mountApp()
     await flushPromises()
 
     press('/')
+    // The pane starts closed, and opening it is a render, so the caret arrives on the next tick
+    // rather than in the same task as the keypress.
+    await flushPromises()
 
     expect(document.activeElement).toBe(wrapper.find('input[type="search"]').element)
   })
@@ -367,78 +375,6 @@ describe('app shortcuts', () => {
     )
   })
 
-  describe('error banner', () => {
-    /**
-     * The sequence #21 is about: a release is rejected, the banner says why, and the user clicks
-     * a message to check whether it was one of the released ones. Reading a message cannot fix a
-     * release, so the explanation has to still be there afterwards.
-     */
-    it('keeps a failed release explained while the user reads a message', async () => {
-      failReleases('Message 1 could not be released: relay refused.')
-      const wrapper = mountApp()
-      await flushPromises()
-      await selectFirst(wrapper)
-      await releaseSelection(wrapper)
-      expect(banner(wrapper)).toContain('relay refused')
-
-      await wrapper.find('#message-row-1').trigger('click')
-      await flushPromises()
-
-      expect(banner(wrapper)).toContain('relay refused')
-    })
-
-    /** Retrying the action that failed is how the user clears it, so that has to work. */
-    it('clears the banner when the failed action is retried successfully', async () => {
-      failReleases('relay refused')
-      const wrapper = mountApp()
-      await flushPromises()
-      await selectFirst(wrapper)
-      await releaseSelection(wrapper)
-      expect(banner(wrapper)).not.toBe('')
-
-      fetchMock.mockImplementation(() => Promise.resolve(jsonResponse({ successful: true })))
-      await releaseSelection(wrapper)
-
-      expect(banner(wrapper)).toBe('')
-    })
-
-    /**
-     * The list reloads every ten seconds on its own. Nobody asked for that, so it cannot take the
-     * banner down with it.
-     */
-    it('does not let the background poll clear the banner', async () => {
-      failReleases('relay refused')
-      const wrapper = mountApp()
-      await flushPromises()
-      await selectFirst(wrapper)
-      await releaseSelection(wrapper)
-      expect(banner(wrapper)).toContain('relay refused')
-
-      await vi.advanceTimersByTimeAsync(10_000)
-      await flushPromises()
-
-      expect(banner(wrapper)).toContain('relay refused')
-    })
-
-    it('replaces an older error when a later action fails too', async () => {
-      failReleases('relay refused')
-      const wrapper = mountApp()
-      await flushPromises()
-      await selectFirst(wrapper)
-      await releaseSelection(wrapper)
-
-      fetchMock.mockImplementation((url: string) =>
-        url.includes('/messages/1')
-          ? Promise.resolve(jsonResponse({ detail: 'Message 1 is gone.' }, 404))
-          : Promise.resolve(jsonResponse(pageOf('Invoice'))),
-      )
-      await wrapper.find('#message-row-1').trigger('click')
-      await flushPromises()
-
-      expect(banner(wrapper)).toContain('Message 1 is gone.')
-    })
-  })
-
   it('does not delete while a request is in flight', async () => {
     const wrapper = mountApp()
     await flushPromises()
@@ -455,5 +391,191 @@ describe('app shortcuts', () => {
     await flushPromises()
 
     expect(fetchMock.mock.calls.some(([url]) => (url as string).includes('/messages/delete'))).toBe(false)
+  })
+})
+
+describe('error banner', () => {
+  /**
+   * The sequence #21 is about: a release is rejected, the banner says why, and the user clicks
+   * a message to check whether it was one of the released ones. Reading a message cannot fix a
+   * release, so the explanation has to still be there afterwards.
+   */
+  it('keeps a failed release explained while the user reads a message', async () => {
+    failReleases('Message 1 could not be released: relay refused.')
+    const wrapper = mountApp()
+    await flushPromises()
+    await selectFirst(wrapper)
+    await releaseSelection(wrapper)
+    expect(banner(wrapper)).toContain('relay refused')
+
+    await wrapper.find('#message-row-1').trigger('click')
+    await flushPromises()
+
+    expect(banner(wrapper)).toContain('relay refused')
+  })
+
+  /** Retrying the action that failed is how the user clears it, so that has to work. */
+  it('clears the banner when the failed action is retried successfully', async () => {
+    failReleases('relay refused')
+    const wrapper = mountApp()
+    await flushPromises()
+    await selectFirst(wrapper)
+    await releaseSelection(wrapper)
+    expect(banner(wrapper)).not.toBe('')
+
+    fetchMock.mockImplementation(() => Promise.resolve(jsonResponse({ successful: true })))
+    await releaseSelection(wrapper)
+
+    expect(banner(wrapper)).toBe('')
+  })
+
+  /**
+   * The list reloads every ten seconds on its own. Nobody asked for that, so it cannot take the
+   * banner down with it.
+   */
+  it('does not let the background poll clear the banner', async () => {
+    failReleases('relay refused')
+    const wrapper = mountApp()
+    await flushPromises()
+    await selectFirst(wrapper)
+    await releaseSelection(wrapper)
+    expect(banner(wrapper)).toContain('relay refused')
+
+    await vi.advanceTimersByTimeAsync(10_000)
+    await flushPromises()
+
+    expect(banner(wrapper)).toContain('relay refused')
+  })
+
+  it('replaces an older error when a later action fails too', async () => {
+    failReleases('relay refused')
+    const wrapper = mountApp()
+    await flushPromises()
+    await selectFirst(wrapper)
+    await releaseSelection(wrapper)
+
+    fetchMock.mockImplementation((url: string) =>
+      url.includes('/messages/1')
+        ? Promise.resolve(jsonResponse({ detail: 'Message 1 is gone.' }, 404))
+        : Promise.resolve(jsonResponse(pageOf('Invoice'))),
+    )
+    await wrapper.find('#message-row-1').trigger('click')
+    await flushPromises()
+
+    expect(banner(wrapper)).toContain('Message 1 is gone.')
+  })
+})
+
+function pressKey(key: string): void {
+  document.body.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
+}
+
+describe('filter pane', () => {
+  function pane(wrapper: VueWrapper) {
+    return wrapper.find('#filter-pane')
+  }
+
+  it('starts closed, since the filter is not what most visits are for', async () => {
+    const wrapper = mountApp()
+    await flushPromises()
+    expect(pane(wrapper).classes()).toContain('collapsed')
+    expect(buttonLabelled(wrapper, 'Filters').attributes('aria-expanded')).toBe('false')
+  })
+
+  it('opens and closes from the toolbar', async () => {
+    const wrapper = mountApp()
+    await flushPromises()
+    const toggle = buttonLabelled(wrapper, 'Filters')
+
+    await toggle.trigger('click')
+    expect(pane(wrapper).classes()).not.toContain('collapsed')
+    expect(toggle.attributes('aria-expanded')).toBe('true')
+
+    await toggle.trigger('click')
+    expect(pane(wrapper).classes()).toContain('collapsed')
+    expect(toggle.attributes('aria-expanded')).toBe('false')
+  })
+
+  /**
+   * Hiding by clipping is not enough on its own: the fields would still take focus, so tabbing
+   * through the app would land in a search box nobody can see. `inert` is what takes the whole
+   * pane out of the tab order and the accessibility tree, and it has to be asserted because the
+   * failure is invisible until someone tabs into a box that is not there.
+   */
+  it('takes the closed fields out of the tab order', async () => {
+    const wrapper = mountApp()
+    await flushPromises()
+    expect(pane(wrapper).attributes('inert')).toBeDefined()
+
+    await buttonLabelled(wrapper, 'Filters').trigger('click')
+    expect(pane(wrapper).attributes('inert')).toBeUndefined()
+  })
+
+  /**
+   * `/` jumps to the search box, so it has to open the pane on the way.
+   *
+   * <p>The pane is inert while closed, and that attribute is not lifted until the next render, so
+   * opening and focusing in the same step leaves the caret nowhere in a real browser. jsdom does
+   * not enforce inert, so this pins the outcome rather than the ordering the tick is there for:
+   * it fails if `/` stops opening the pane, and would not fail if the tick were dropped.
+   */
+  it('opens the pane and puts the caret in the search box on /', async () => {
+    const wrapper = mountApp()
+    await flushPromises()
+    expect(pane(wrapper).classes()).toContain('collapsed')
+
+    pressKey('/')
+    await flushPromises()
+
+    expect(pane(wrapper).classes()).not.toContain('collapsed')
+    expect(document.activeElement).toBe(subjectInput(wrapper).element)
+  })
+
+  /**
+   * A pane shut with a filter still applied leaves a list that looks like it simply has nothing
+   * else in it, which is not a state anyone can tell apart from an unfiltered one.
+   */
+  it('marks the toggle while a filter is applied but the pane is closed', async () => {
+    const wrapper = mountApp()
+    await flushPromises()
+    await buttonLabelled(wrapper, 'Filters').trigger('click')
+    await subjectInput(wrapper).setValue('invoice')
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+    await buttonLabelled(wrapper, 'Filters').trigger('click')
+
+    expect(pane(wrapper).classes()).toContain('collapsed')
+    expect(buttonLabelled(wrapper, 'Filters').attributes('aria-label')).toContain('a filter is applied')
+  })
+
+  it('leaves the toggle unmarked when nothing is filtered', async () => {
+    const wrapper = mountApp()
+    await flushPromises()
+    expect(buttonLabelled(wrapper, 'Filters').attributes('aria-label')).toBeUndefined()
+  })
+
+  it('remembers the choice, so a filter user does not reopen it every reload', async () => {
+    const wrapper = mountApp()
+    await flushPromises()
+    await buttonLabelled(wrapper, 'Filters').trigger('click')
+
+    mounted?.unmount()
+    const second = mountApp()
+    await flushPromises()
+
+    expect(pane(second).classes()).not.toContain('collapsed')
+  })
+
+  it('remembers having been closed, rather than reopening on the next reload', async () => {
+    const wrapper = mountApp()
+    await flushPromises()
+    await buttonLabelled(wrapper, 'Filters').trigger('click')
+    await buttonLabelled(wrapper, 'Filters').trigger('click')
+
+    mounted?.unmount()
+    const second = mountApp()
+    await flushPromises()
+
+    expect(pane(second).classes()).toContain('collapsed')
   })
 })
