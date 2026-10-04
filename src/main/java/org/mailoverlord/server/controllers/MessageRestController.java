@@ -5,6 +5,8 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.mail.internet.AddressException;
+import jakarta.mail.internet.InternetAddress;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
@@ -181,13 +183,16 @@ public class MessageRestController {
             + "before retrying, since retrying the whole batch re-sends what already went out.",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                     schema = @Schema(implementation = MessageReleaseResponse.class)))
-    @ApiResponse(responseCode = "400", description = "The body named no messages to release: "
-            + "messageIds was absent, misspelled, null or empty.",
+    @ApiResponse(responseCode = "400", description = "The body cannot be acted on: messageIds "
+            + "was absent, misspelled, null or empty, or an override was asked for without naming "
+            + "the addresses to substitute. Rejected rather than reported as a failed release, "
+            + "since nothing was attempted and nothing needs releasing again.",
             content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
                     schema = @Schema(implementation = ProblemDetail.class)))
     @PostMapping(value = "/messages/release", produces = MediaType.APPLICATION_JSON_VALUE)
     public MessageReleaseResponse releaseMessages(@RequestBody MessageReleaseRequest messageReleaseRequest) {
         requireMessageIds(messageReleaseRequest.getMessageIds());
+        requireOverrideAddresses(messageReleaseRequest);
         logger.debug("Got MessageReleaseRequest, size: {}", messageReleaseRequest.getMessageIds().size());
         try {
             return messageService.releaseMessage(messageReleaseRequest);
@@ -198,6 +203,50 @@ public class MessageRestController {
             logger.error("Error while trying to release messages.", t);
             return MessageReleaseResponse.noneReleased(messageReleaseRequest.getMessageIds(),
                     t.getMessage());
+        }
+    }
+
+    /**
+     * An override that names no address is a client mistake, and the service would find out the
+     * hard way.
+     *
+     * <p>Asking to override the recipient without saying who to send to reached
+     * {@code getOverrideToAddresses().split(",")} and threw a NullPointerException, which the
+     * handler around the release reported as {@code 200 {"successful": false}} with the message
+     * "Error while releasing message." Nothing in that says the request was incomplete, and the
+     * caller is left guessing whether to retry. Asking to override the sender behaved the same
+     * way, so both are checked here.
+     *
+     * <p>Shape is checked too, not just presence. The addresses are shared by every id in the
+     * batch, so one malformed entry failed all of them identically, and after delivery had begun;
+     * parsing up front rejects the request once, having sent nothing.
+     *
+     * <p>Parses rather than pattern-matching an address format. This is the same check the
+     * service performs, so anything accepted here is accepted there, and anything rejected here is
+     * a request mistake rather than an SMTP problem to discover at delivery time.
+     */
+    private void requireOverrideAddresses(MessageReleaseRequest request) {
+        requireOverrideAddress(request.isOverrideTo(), request.getOverrideToAddresses(),
+                "overrideTo", "overrideToAddresses");
+        requireOverrideAddress(request.isOverrideFrom(), request.getOverrideFromAddress(),
+                "overrideFrom", "overrideFromAddress");
+    }
+
+    private void requireOverrideAddress(boolean override, String addresses, String flag, String field) {
+        if (!override) {
+            return;
+        }
+        if (addresses == null || addresses.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    field + " must name at least one address when " + flag + " is true.");
+        }
+        for (String address : addresses.split(",")) {
+            try {
+                new InternetAddress(address.trim(), false);
+            } catch (AddressException e) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        field + " contains an address that cannot be parsed: \"" + address.trim() + "\".");
+            }
         }
     }
 

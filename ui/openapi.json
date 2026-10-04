@@ -47,7 +47,7 @@
             }
           },
           "400": {
-            "description": "The body named no messages to release: messageIds was absent, misspelled, null or empty.",
+            "description": "The body cannot be acted on: messageIds was absent, misspelled, null or empty, or an override was asked for without naming the addresses to substitute. Rejected rather than reported as a failed release, since nothing was attempted and nothing needs releasing again.",
             "content": {
               "application/problem+json": {
                 "schema": {
