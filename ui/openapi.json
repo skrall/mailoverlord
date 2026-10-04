@@ -37,11 +37,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Per-id outcome, including the error message when a message could not be released.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body named no messages to release: messageIds was absent, misspelled, null or empty.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -69,11 +79,21 @@
         },
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Per-id outcome. This reports failures in the body rather than with a status code, so a partially successful request is still a 200.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The body named no messages to delete: messageIds was absent, misspelled, null or empty. Rejected rather than reported as a successful no-op, because deleting nothing while claiming success reads as though the messages are gone.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -102,11 +122,31 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "The message, in full.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/MessageDetail"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The id is not a number.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No message has that id. It may have been deleted, or the id may never have existed.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -176,11 +216,21 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "A page of matching messages.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PageResponseMessageSummary"
+                  "$ref": "#/components/schemas/PageResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A parameter could not be understood: a sort field other than the four above, a filter timestamp that is not an ISO-8601 instant, or a page or size outside the accepted range.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetail"
                 }
               }
             }
@@ -223,6 +273,33 @@
           },
           "errorMessage": {
             "type": "string"
+          }
+        }
+      },
+      "ProblemDetail": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "instance": {
+            "type": "string",
+            "format": "uri"
+          },
+          "properties": {
+            "type": "object",
+            "additionalProperties": {}
           }
         }
       },
@@ -318,7 +395,7 @@
           }
         }
       },
-      "PageResponseMessageSummary": {
+      "PageResponse": {
         "type": "object",
         "properties": {
           "content": {

@@ -29,7 +29,7 @@ export type MessageDetail = Omit<Present<Schema['MessageDetail']>, 'releasedTime
  * spelled out, because {@link Present} does not recurse into a list's contents and the
  * content is normalised on the way out.
  */
-export type MessagePage = Present<Omit<Schema['PageResponseMessageSummary'], 'content'>> & {
+export type MessagePage = Present<Omit<Schema['PageResponse'], 'content'>> & {
   content: MessageSummary[]
 }
 
@@ -121,7 +121,7 @@ export async function listMessages(pageRequest: MessagePageRequest): Promise<Mes
     }
   }
 
-  const page = await request<Schema['PageResponseMessageSummary']>(`/messages/list?${query}`)
+  const page = await request<Schema['PageResponse']>(`/messages/list?${query}`)
   return {
     content: (page.content ?? []).map(normaliseSummary),
     number: page.number ?? 0,
