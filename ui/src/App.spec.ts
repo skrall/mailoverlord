@@ -14,8 +14,15 @@ import App from './App.vue'
 
 const fetchMock = vi.fn()
 
-function jsonResponse(body: unknown): Response {
-  return { ok: true, status: 200, json: async () => body } as Response
+function jsonResponse(body: unknown, status = 200): Response {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => body,
+    // The client reads an error body as text and parses it, so a mock answering only json()
+    // would fail for the wrong reason.
+    text: async () => JSON.stringify(body),
+  } as unknown as Response
 }
 
 function pageOf(subject: string, totalPages = 1): unknown {
@@ -301,6 +308,42 @@ describe('app shortcuts', () => {
     await flushPromises()
 
     expect(fetchMock.mock.calls.some(([url]) => (url as string).includes('/messages/delete'))).toBe(false)
+  })
+
+  /**
+   * The whole point of #14: the server knows what was wrong with the request, and that sentence
+   * has to reach the screen. Asserted here rather than in the client because the client test only
+   * proves the error object is composed, not that anyone is shown it.
+   */
+  it('shows what the server said was wrong when a release is rejected', async () => {
+    fetchMock.mockImplementation((url: string) =>
+      url.includes('/messages/release')
+        ? Promise.resolve(
+            jsonResponse(
+              {
+                detail: 'overrideToAddresses must name at least one address when overrideTo is true.',
+                status: 400,
+                title: 'Bad Request',
+              },
+              400,
+            ),
+          )
+        : Promise.resolve(jsonResponse(pageOf('Invoice'))),
+    )
+    const wrapper = mountApp()
+    await flushPromises()
+    await selectFirst(wrapper)
+
+    await wrapper.findAll('button').find((b) => b.text() === 'Release')!.trigger('click')
+    await flushPromises()
+    await wrapper.find('[role="dialog"]').trigger('submit')
+    await flushPromises()
+
+    const alert = wrapper.find('[role="alert"]')
+    expect(alert.exists()).toBe(true)
+    expect(alert.text()).toContain(
+      'overrideToAddresses must name at least one address when overrideTo is true.',
+    )
   })
 
   it('does not delete while a request is in flight', async () => {
