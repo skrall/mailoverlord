@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import {
   deleteMessages,
   getMessage,
@@ -36,6 +36,50 @@ const filter = ref<MessageFilterRequest>({})
  * half-typed subject, which both wastes a request and replaces the rows under the cursor.
  */
 const filterSettling = ref(false)
+
+const FILTERS_KEY = 'mailoverlord:filters-open'
+
+/**
+ * Whether the filter pane is showing.
+ *
+ * <p>Collapsed on a first visit. Most of the time this tool is opened to see what arrived, and the
+ * filter row is the one thing standing between the table and the height it needs. Someone who
+ * lives in the filter pane should not have to reopen it after every reload, so the choice is
+ * remembered.
+ */
+const filtersVisible = ref(readStoredFilters())
+
+function readStoredFilters(): boolean {
+  try {
+    return localStorage.getItem(FILTERS_KEY) === 'open'
+  } catch {
+    // Storage can be blocked, in which case the pane simply starts collapsed.
+    return false
+  }
+}
+
+function setFiltersVisible(next: boolean): void {
+  filtersVisible.value = next
+  try {
+    localStorage.setItem(FILTERS_KEY, next ? 'open' : 'closed')
+  } catch {
+    // The pane still toggles, it just will not be remembered.
+  }
+}
+
+/**
+ * Whether a filter is currently narrowing the list.
+ *
+ * <p>Needed because the pane can be shut with a filter still applied, and a list that is silently
+ * filtered is indistinguishable from one that happens to have nothing else in it.
+ */
+const filterActive = computed(() =>
+  Object.values(filter.value).some((value) => value !== undefined && value !== ''),
+)
+
+function toggleFilters(): void {
+  setFiltersVisible(!filtersVisible.value)
+}
 
 const selectedIds = ref<number[]>([])
 const activeId = ref<number | null>(null)
@@ -287,7 +331,13 @@ function onShortcut(event: KeyboardEvent): void {
 
   if (event.key === '/') {
     event.preventDefault()
-    filterBar.value?.focusSubject()
+    // A collapsed pane is inert, so its subject box cannot take focus until the pane is open.
+    // That attribute is not lifted until the next render, hence the tick before focusing:
+    // opening and focusing in one go silently leaves the caret nowhere.
+    if (!filtersVisible.value) {
+      setFiltersVisible(true)
+    }
+    void nextTick(() => filterBar.value?.focusSubject())
     return
   }
 
@@ -323,6 +373,18 @@ onUnmounted(() => {
     <header class="toolbar">
       <h1>Mailoverlord</h1>
       <div class="actions">
+        <button
+          type="button"
+          class="filters-toggle"
+          :aria-expanded="filtersVisible"
+          :aria-label="filterActive ? 'Filters (a filter is applied)' : undefined"
+          aria-controls="filter-pane"
+          @click="toggleFilters"
+        >
+          <span class="chevron" :class="{ open: filtersVisible }" aria-hidden="true" />
+          Filters
+          <span v-if="filterActive" class="applied" aria-hidden="true" />
+        </button>
         <span class="selected">{{ selectedIds.length }} selected</span>
         <button
           type="button"
@@ -347,12 +409,25 @@ onUnmounted(() => {
     <SplitPane>
       <template #primary>
         <section class="list">
-          <FilterBar
-            ref="filterBar"
-            :filter="filter"
-            @editing="filterSettling = true"
-            @change="applyFilter"
-          />
+          <!--
+            `inert` is spelled out rather than bound as a plain boolean: Vue does not drop the
+            attribute when it is bound to false, it would render inert="false", and an inert
+            attribute that is present is inert whatever it says. That would leave the pane
+            permanently untabbable.
+          -->
+          <div
+            id="filter-pane"
+            class="filter-pane"
+            :class="{ collapsed: !filtersVisible }"
+            :inert="filtersVisible ? undefined : true"
+          >
+            <FilterBar
+              ref="filterBar"
+              :filter="filter"
+              @editing="filterSettling = true"
+              @change="applyFilter"
+            />
+          </div>
           <div class="scroll">
             <MessageTable
               :messages="messages"
@@ -438,6 +513,73 @@ h1 {
   background: var(--danger-soft);
   color: var(--danger);
   border-bottom: 1px solid var(--border);
+}
+
+/**
+ * Collapses by animating the track from 1fr to 0fr rather than a height, because a height
+ * transition has to be told how tall the content is and the filter fields wrap onto a second row
+ * depending on the window. The track takes the content's own height and needs no measuring.
+ */
+.filter-pane {
+  display: grid;
+  grid-template-rows: 1fr;
+  border-bottom: 1px solid var(--border);
+}
+
+.filter-pane > * {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.filter-pane.collapsed {
+  grid-template-rows: 0fr;
+  /* The rule under the pane would otherwise be left behind as a stray line under the table. */
+  border-bottom: 0;
+}
+
+.filter-pane.collapsed > * {
+  opacity: 0;
+}
+
+.applied {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.chevron {
+  display: inline-block;
+  margin-right: 6px;
+  border: solid currentColor;
+  border-width: 0 1.5px 1.5px 0;
+  padding: 3px;
+  transform: rotate(-45deg);
+}
+
+.chevron.open {
+  transform: rotate(45deg);
+}
+
+/*
+ * Motion lives entirely inside a no-preference query rather than being switched off in a
+ * reduce query. A browser that does not support the query then gets no animation at all, which is
+ * the right way round: someone who has asked for less movement should never be the one to find
+ * out that a transition was left unguarded.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  .filter-pane,
+  .filter-pane > * {
+    transition:
+      grid-template-rows 180ms ease,
+      opacity 140ms ease;
+  }
+
+  .chevron {
+    transition: transform 180ms ease;
+  }
 }
 
 .list {

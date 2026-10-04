@@ -145,7 +145,11 @@ onUnmounted(() => window.clearTimeout(timer))
   flex-wrap: wrap;
   padding: 8px 12px;
   background: var(--surface-sunken);
-  border-bottom: 1px solid var(--border);
+  /*
+   * The rule below is drawn by the collapsible pane in App.vue rather than here, so that it is
+   * part of what collapses. A border on this element would be left behind as a stray line once
+   * the pane is shut.
+   */
 }
 
 label {
