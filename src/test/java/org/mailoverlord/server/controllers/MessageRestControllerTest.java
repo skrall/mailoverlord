@@ -10,6 +10,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import org.junit.jupiter.api.Test;
 import org.mailoverlord.server.AbstractMailoverlordIntegrationTest;
 import org.mailoverlord.server.entities.Message;
+import org.mailoverlord.server.model.MessageDeleteRequest;
 import org.springframework.http.MediaType;
 
 /**
@@ -415,6 +416,91 @@ class MessageRestControllerTest extends AbstractMailoverlordIntegrationTest {
 
         assertThat(messageRepository.findById(message.getId()).orElseThrow().getReleasedTimestamp())
                 .isNotNull();
+    }
+
+    /**
+     * The cap on a batch is the most ids one page can hold, which is the most a selection on the
+     * table can contain. Spring clamps an oversized page request rather than refusing it, so this
+     * is what actually bounds a batch the UI can produce; if the resolver's maximum ever moves,
+     * this fails and the cap has to move with it.
+     */
+    @Test
+    void theTableCannotAskForMoreRowsThanABatchAccepts() throws Exception {
+        mockMvc.perform(get("/messages/list?size=99999").accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.size").value(MessageDeleteRequest.MAX_IDS_PER_REQUEST));
+    }
+
+    /**
+     * Nothing bounded how many ids a request could name, and the service turns the list into one
+     * {@code IN} clause, so the request set the size of the SQL statement.
+     */
+    @Test
+    void releaseRejectsABatchLargerThanTheCap() throws Exception {
+        mockMvc.perform(post("/messages/release")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(oversizedBatch()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value(
+                        "messageIds must contain at most 2000 message ids."))
+                .andExpect(jsonPath("$.errors[0].field").value("messageIds"));
+    }
+
+    @Test
+    void deleteRejectsABatchLargerThanTheCap() throws Exception {
+        Message message = saveMessage("from@test.com", "to@test.com");
+
+        mockMvc.perform(post("/messages/delete")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(oversizedBatch()))
+                .andExpect(status().isBadRequest());
+
+        // A rejected request is not a licence to delete.
+        assertThat(messageRepository.findById(message.getId())).isPresent();
+    }
+
+    /**
+     * The batch at the cap is still a normal request, so the cap rejects oversized requests
+     * rather than large ones.
+     */
+    @Test
+    void releaseAcceptsABatchExactlyAtTheCap() throws Exception {
+        mockMvc.perform(post("/messages/release")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(batchOf(MessageDeleteRequest.MAX_IDS_PER_REQUEST)))
+                .andExpect(status().isOk());
+    }
+
+    /**
+     * A batch naming ids that do not exist is well formed, and answers with an outcome per id
+     * rather than a rejection.
+     */
+    @Test
+    void anOversizedBatchOfUnknownIdsIsStillRejectedRatherThanAnsweredPerId() throws Exception {
+        mockMvc.perform(post("/messages/release")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(oversizedBatch()))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.outcomes").doesNotExist());
+    }
+
+    /**
+     * A request with one id more than the cap.
+     */
+    private static String oversizedBatch() {
+        return batchOf(MessageDeleteRequest.MAX_IDS_PER_REQUEST + 1);
+    }
+
+    private static String batchOf(int count) {
+        StringBuilder ids = new StringBuilder();
+        for (int id = 1; id <= count; id++) {
+            ids.append(id == 1 ? "" : ",").append(id);
+        }
+        return "{\"messageIds\": [" + ids + "]}";
     }
 
     /**
