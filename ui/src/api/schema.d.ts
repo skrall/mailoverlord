@@ -202,7 +202,7 @@ export interface operations {
                     "application/json": components["schemas"]["MessageReleaseResponse"];
                 };
             };
-            /** @description The body named no messages to release: messageIds was absent, misspelled, null or empty. */
+            /** @description The body cannot be acted on: messageIds was absent, misspelled, null or empty, or an override was asked for without naming the addresses to substitute. Rejected rather than reported as a failed release, since nothing was attempted and nothing needs releasing again. */
             400: {
                 headers: {
                     [name: string]: unknown;

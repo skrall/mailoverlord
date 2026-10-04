@@ -103,10 +103,35 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
 
   if (!response.ok) {
-    throw new ApiError(`${init?.method ?? 'GET'} ${path} failed with ${response.status}`, response.status)
+    throw new ApiError(
+      (await problemDetail(response)) ?? `${init?.method ?? 'GET'} ${path} failed with ${response.status}`,
+      response.status,
+    )
   }
 
   return (await response.json()) as T
+}
+
+/**
+ * What the server said was wrong, if it said anything.
+ *
+ * <p>A rejected request comes back as RFC 9457 problem details, and its `detail` is the only part
+ * a person can act on: "overrideToAddresses must name at least one address when overrideTo is
+ * true" says what to change, where "POST /messages/release failed with 400" says only that
+ * something happened. Prefers `detail`, falling back to `title` for a problem that has one.
+ */
+async function problemDetail(response: Response): Promise<string | null> {
+  try {
+    const problem = (await response.json()) as { detail?: unknown; title?: unknown }
+    if (typeof problem.detail === 'string' && problem.detail !== '') {
+      return problem.detail
+    }
+    return typeof problem.title === 'string' && problem.title !== '' ? problem.title : null
+  } catch {
+    // A body is not guaranteed: a proxy can fail, a crash writes HTML, and an empty body is not
+    // JSON. None of that is worth reporting over the failure itself.
+    return null
+  }
 }
 
 function normaliseSummary(summary: Schema['MessageSummary']): MessageSummary {

@@ -335,6 +335,89 @@ class MessageRestControllerTest extends AbstractMailoverlordIntegrationTest {
     }
 
     /**
+     * Asking to override the recipient without saying who to send to used to reach
+     * getOverrideToAddresses().split(",") and throw a NullPointerException, which the handler
+     * around the release turned into 200 {"successful": false} and "Error while releasing
+     * message." A one-step fix reported as an unexplained failure.
+     */
+    @Test
+    void releaseWithAnOverrideToAndNoAddressIsRejected() throws Exception {
+        Message message = saveMessage("from@test.com", "to@test.com");
+
+        mockMvc.perform(post("/messages/release")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"messageIds\": [%d], \"overrideTo\": true}".formatted(message.getId())))
+                .andExpect(status().isBadRequest());
+
+        // Nothing may be sent for a request that was never going to work.
+        assertThat(messageRepository.findById(message.getId()).orElseThrow().getReleasedTimestamp())
+                .isNull();
+    }
+
+    /**
+     * A whitespace-only address is no address. It is blank rather than null, so it took a
+     * different path to the same place.
+     */
+    @Test
+    void releaseWithABlankOverrideAddressIsRejected() throws Exception {
+        mockMvc.perform(post("/messages/release")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"messageIds\": [1], \"overrideTo\": true, "
+                                + "\"overrideToAddresses\": \"   \"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    /**
+     * Overriding the sender had the same defect, one method over, and would have been left in
+     * place by a fix that only looked at the recipient.
+     */
+    @Test
+    void releaseWithAnOverrideFromAndNoAddressIsRejected() throws Exception {
+        mockMvc.perform(post("/messages/release")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"messageIds\": [1], \"overrideFrom\": true}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    /**
+     * The addresses are shared by every id in the batch, so one malformed entry failed all of
+     * them the same way, after delivery had already started. Caught before anything is sent.
+     */
+    @Test
+    void releaseWithAnUnparseableOverrideAddressIsRejected() throws Exception {
+        mockMvc.perform(post("/messages/release")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"messageIds\": [1], \"overrideTo\": true, "
+                                + "\"overrideToAddresses\": \"not an address\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    /**
+     * A rejected request is only worth rejecting if the well-formed one still goes through, so
+     * this asks for an override the way a caller would and expects it to be honoured.
+     */
+    @Test
+    void releaseWithAnOverrideThatNamesAnAddressIsAccepted() throws Exception {
+        Message message = saveMessage("from@test.com", "to@test.com");
+
+        mockMvc.perform(post("/messages/release")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(("{\"messageIds\": [%d], \"overrideTo\": true, "
+                                + "\"overrideToAddresses\": \"someone@example.com\"}")
+                                .formatted(message.getId())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.successful").value(true));
+
+        assertThat(messageRepository.findById(message.getId()).orElseThrow().getReleasedTimestamp())
+                .isNotNull();
+    }
+
+    /**
      * A valid delete still deletes, and still answers 200. The rejections above are only
      * meaningful if the happy path is unaffected.
      */

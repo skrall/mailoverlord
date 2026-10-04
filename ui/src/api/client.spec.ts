@@ -289,4 +289,47 @@ describe('request failures', () => {
 
     await expect(getMessage(99)).rejects.toMatchObject({ name: 'ApiError', status: 404 })
   })
+
+  /**
+   * A rejected request comes back as problem details, and the detail is the only part of it a
+   * person can act on. Reporting "failed with 400" instead is what made a missing override
+   * address look like an unexplained failure.
+   */
+  it('uses the explanation the server sent rather than the status alone', async () => {
+    const detail = 'overrideToAddresses must name at least one address when overrideTo is true.'
+    fetchMock.mockResolvedValue(jsonResponse({ detail }, 400))
+
+    await expect(releaseMessages({ messageIds: [1], overrideTo: true })).rejects.toMatchObject({
+      message: detail,
+      status: 400,
+    })
+  })
+
+  it('falls back to the status when the failure carries no detail', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({}, 400))
+
+    await expect(getMessage(99)).rejects.toMatchObject({
+      message: 'GET /messages/99 failed with 400',
+      status: 400,
+    })
+  })
+
+  /**
+   * A body is not guaranteed. A proxy can answer with HTML and a crash can write nothing, so
+   * reading the detail must not turn one failure into another.
+   */
+  it('still reports the status when the failure body is not json', async () => {
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 502,
+      json: async () => {
+        throw new SyntaxError('Unexpected token <')
+      },
+    } as unknown as Response)
+
+    await expect(getMessage(99)).rejects.toMatchObject({
+      message: 'GET /messages/99 failed with 502',
+      status: 502,
+    })
+  })
 })
