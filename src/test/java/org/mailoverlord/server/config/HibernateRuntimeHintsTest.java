@@ -103,7 +103,8 @@ class HibernateRuntimeHintsTest {
 
     @Test
     void registersHibernateSchemaResources() {
-        assertThat(registeredResourcePatterns())
+        // "/" is the root Spring includes implicitly, not a pattern anyone chose.
+        assertThat(registeredResourcePatterns().stream().filter(pattern -> !"/".equals(pattern)).toList())
                 .as("the DTDs and XSDs the JAXB binder resolves by name while reading mappings")
                 .anyMatch(pattern -> pattern.endsWith("*.xsd"))
                 .anyMatch(pattern -> pattern.endsWith("*.dtd"));
@@ -122,14 +123,41 @@ class HibernateRuntimeHintsTest {
                         .isNotEmpty());
     }
 
+    /**
+     * Asks using the patterns the hints actually register, rather than a pattern written out here.
+     * A literal copy of the pattern passes whether or not the registered one works, which is how
+     * the unprefixed patterns went on matching nothing while this test stayed green.
+     */
     @Test
     void theSchemaFromTheNativeImageFailureIsMatched() {
         PathMatchingResourcePatternResolver resolver =
                 new PathMatchingResourcePatternResolver(getClass().getClassLoader());
 
-        assertThat(resolve(resolver, "org/hibernate/**/*.dtd"))
+        assertThat(registeredResourcePatterns().stream()
+                .filter(pattern -> pattern.endsWith(".dtd"))
+                .flatMap(pattern -> resolve(resolver, pattern).stream()))
                 .as("the DTD named in the native image failure")
                 .anyMatch(path -> path.endsWith("org/hibernate/hibernate-mapping-3.0.dtd"));
+    }
+
+    /**
+     * Every pattern is resolved against the whole classpath rather than its first match.
+     *
+     * <p>Without the prefix, a pattern sees only the first {@code org/hibernate/} on the
+     * classpath, and which jar that is comes down to dependency order. Hibernate Validator ships
+     * that package itself and holds none of Hibernate ORM's schemas, so the moment it was added
+     * for request validation the unprefixed patterns matched nothing: the native image would have
+     * failed to locate a schema, blamed on a dependency that has nothing to do with them. See #18.
+     */
+    @Test
+    void everyResourcePatternLooksAtTheWholeClasspath() {
+        // "/" is the root Spring includes implicitly, not a pattern anyone chose.
+        assertThat(registeredResourcePatterns().stream().filter(pattern -> !"/".equals(pattern)).toList())
+                .as("a pattern without classpath*: resolves against the first matching root only, "
+                        + "so a jar sharing the package and holding nothing of interest silently "
+                        + "stops it matching")
+                .isNotEmpty()
+                .allSatisfy(pattern -> assertThat(pattern).startsWith("classpath*:"));
     }
 
     private List<String> resolve(PathMatchingResourcePatternResolver resolver, String pattern) {

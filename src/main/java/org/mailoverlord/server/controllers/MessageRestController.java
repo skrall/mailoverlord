@@ -5,8 +5,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import jakarta.mail.internet.AddressException;
-import jakarta.mail.internet.InternetAddress;
+import jakarta.validation.Valid;
 import java.time.Instant;
 import java.util.List;
 import java.util.Set;
@@ -105,6 +104,13 @@ public class MessageRestController {
     /**
      * Rejects an unknown sort field, and gives every ordering a tiebreaker.
      *
+     * <p>The one piece of request validation here that is not a constraint on a DTO, and
+     * deliberately so. A {@code Pageable} is assembled by Spring Data's own argument resolver
+     * before any validation runs, and whether a sort name names a real property is a question
+     * about this entity rather than about the shape of a request, so there is nothing on a bean
+     * to hang the rule from. Everything else the API accepts is declared on the request DTOs; see
+     * #18.
+     *
      * <p>The sort name is handed straight to Hibernate, which turns it into an ORDER BY on a
      * column. A name that is not a property does not come back as a bad request; it comes
      * back as an unresolved identifier and surfaces as a 500, which reports a client typo as
@@ -154,15 +160,16 @@ public class MessageRestController {
             + "still a 200.",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                     schema = @Schema(implementation = MessageResponse.class)))
-    @ApiResponse(responseCode = "400", description = "The body named no messages to delete: "
-            + "messageIds was absent, misspelled, null or empty. Rejected rather than reported "
-            + "as a successful no-op, because deleting nothing while claiming success reads as "
-            + "though the messages are gone.",
+    @ApiResponse(responseCode = "400", description = "The body cannot be acted on: messageIds "
+            + "was absent, misspelled, null or empty, or named more than 2000 messages. Rejected "
+            + "rather than reported as a successful no-op, because deleting nothing while claiming "
+            + "success reads as though the messages are gone. The limit is the most ids one page "
+            + "of the table can hold, which is the most a selection can contain.",
             content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
                     schema = @Schema(implementation = ProblemDetail.class)))
     @PostMapping(value = "/messages/delete", produces = MediaType.APPLICATION_JSON_VALUE)
-    public MessageResponse deleteMessages(@RequestBody MessageDeleteRequest messageDeleteRequest) {
-        requireMessageIds(messageDeleteRequest.getMessageIds());
+    public MessageResponse deleteMessages(
+            @Valid @RequestBody MessageDeleteRequest messageDeleteRequest) {
         logger.debug("Got MessageDeleteRequest, size: {}", messageDeleteRequest.getMessageIds().size());
         MessageResponse response = new MessageResponse();
         try {
@@ -184,15 +191,17 @@ public class MessageRestController {
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                     schema = @Schema(implementation = MessageReleaseResponse.class)))
     @ApiResponse(responseCode = "400", description = "The body cannot be acted on: messageIds "
-            + "was absent, misspelled, null or empty, or an override was asked for without naming "
-            + "the addresses to substitute. Rejected rather than reported as a failed release, "
-            + "since nothing was attempted and nothing needs releasing again.",
+            + "was absent, misspelled, null or empty, or named more than 2000 messages; or an "
+            + "override was asked for without naming addresses that parse, which is what the "
+            + "substituted recipients or sender would be taken from. Rejected rather than reported "
+            + "as a failed release, since nothing was attempted and nothing needs releasing again. "
+            + "The limit is the most ids one page of the table can hold, which is the most a "
+            + "selection can contain.",
             content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
                     schema = @Schema(implementation = ProblemDetail.class)))
     @PostMapping(value = "/messages/release", produces = MediaType.APPLICATION_JSON_VALUE)
-    public MessageReleaseResponse releaseMessages(@RequestBody MessageReleaseRequest messageReleaseRequest) {
-        requireMessageIds(messageReleaseRequest.getMessageIds());
-        requireOverrideAddresses(messageReleaseRequest);
+    public MessageReleaseResponse releaseMessages(
+            @Valid @RequestBody MessageReleaseRequest messageReleaseRequest) {
         logger.debug("Got MessageReleaseRequest, size: {}", messageReleaseRequest.getMessageIds().size());
         try {
             return messageService.releaseMessage(messageReleaseRequest);
@@ -203,72 +212,6 @@ public class MessageRestController {
             logger.error("Error while trying to release messages.", t);
             return MessageReleaseResponse.noneReleased(messageReleaseRequest.getMessageIds(),
                     t.getMessage());
-        }
-    }
-
-    /**
-     * An override that names no address is a client mistake, and the service would find out the
-     * hard way.
-     *
-     * <p>Asking to override the recipient without saying who to send to reached
-     * {@code getOverrideToAddresses().split(",")} and threw a NullPointerException, which the
-     * handler around the release reported as {@code 200 {"successful": false}} with the message
-     * "Error while releasing message." Nothing in that says the request was incomplete, and the
-     * caller is left guessing whether to retry. Asking to override the sender behaved the same
-     * way, so both are checked here.
-     *
-     * <p>Shape is checked too, not just presence. The addresses are shared by every id in the
-     * batch, so one malformed entry failed all of them identically, and after delivery had begun;
-     * parsing up front rejects the request once, having sent nothing.
-     *
-     * <p>Parses rather than pattern-matching an address format. This is the same check the
-     * service performs, so anything accepted here is accepted there, and anything rejected here is
-     * a request mistake rather than an SMTP problem to discover at delivery time.
-     */
-    private void requireOverrideAddresses(MessageReleaseRequest request) {
-        requireOverrideAddress(request.isOverrideTo(), request.getOverrideToAddresses(),
-                "overrideTo", "overrideToAddresses");
-        requireOverrideAddress(request.isOverrideFrom(), request.getOverrideFromAddress(),
-                "overrideFrom", "overrideFromAddress");
-    }
-
-    private void requireOverrideAddress(boolean override, String addresses, String flag, String field) {
-        if (!override) {
-            return;
-        }
-        if (addresses == null || addresses.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    field + " must name at least one address when " + flag + " is true.");
-        }
-        for (String address : addresses.split(",")) {
-            try {
-                new InternetAddress(address.trim(), false);
-            } catch (AddressException e) {
-                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                        field + " contains an address that cannot be parsed: \"" + address.trim() + "\".");
-            }
-        }
-    }
-
-    /**
-     * A request that names no messages is a client mistake, not a successful no-op.
-     *
-     * <p>Both DTOs default {@code messageIds} to an empty list, so a body with a
-     * misspelled field, such as {@code {"ids": [1]}}, deserialises cleanly into an empty
-     * list and the service then does nothing. That reported {@code successful: true}
-     * while deleting nothing, which is the worst kind of answer for a destructive
-     * operation. An explicit {@code null} was worse still: the debug log line read
-     * {@code getMessageIds().size()} before the try block, so it threw a
-     * NullPointerException that escaped as a 500.
-     *
-     * <p>Rejects both rather than quietly succeeding, so the caller learns that its
-     * request did not do what it said. A 400 is also the honest status: nothing was
-     * attempted, so this is not a partial failure of an operation that ran.
-     */
-    private void requireMessageIds(List<Long> messageIds) {
-        if (messageIds == null || messageIds.isEmpty()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
-                    "messageIds must contain at least one message id.");
         }
     }
 }

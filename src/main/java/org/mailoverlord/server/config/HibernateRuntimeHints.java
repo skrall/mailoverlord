@@ -44,7 +44,7 @@ public class HibernateRuntimeHints implements RuntimeHintsRegistrar {
     /**
      * Message bundles the generated loggers read their messages from.
      */
-    private static final String MESSAGES_PATTERN = "org/hibernate/**/*i18n.properties";
+    private static final String MESSAGES_PATTERN = "classpath*:org/hibernate/**/*i18n.properties";
 
     /**
      * DTDs and XSDs the JAXB binder resolves while reading mappings, which a native image
@@ -57,9 +57,18 @@ public class HibernateRuntimeHints implements RuntimeHintsRegistrar {
      * <p>Matched by pattern rather than by name because Hibernate carries a fixed set of them
      * across its mapping, configuration and JPA namespaces, and gains one with each revision
      * of the specs it supports.
+     *
+     * <p>The {@code classpath*:} prefix is load-bearing, and every pattern here carries it. Without
+     * it a pattern is resolved against the first {@code org/hibernate/} on the classpath only,
+     * rather than against all of them, and which jar that is depends on dependency order. Hibernate
+     * Validator ships its own {@code org/hibernate/} package and nothing else does, so adding it
+     * for request validation put an empty root in front of hibernate-core and these patterns
+     * matched nothing at all: no schemas, and 2 of the 55 message bundles. The image would have
+     * failed at runtime with the "unable to locate schema" error above, from a dependency that had
+     * nothing to do with schemas. See #18.
      */
     private static final List<String> SCHEMA_PATTERNS =
-            List.of("org/hibernate/**/*.xsd", "org/hibernate/**/*.dtd");
+            List.of("classpath*:org/hibernate/**/*.xsd", "classpath*:org/hibernate/**/*.dtd");
 
     /**
      * Implementations Hibernate resolves by name and instantiates through their no-argument

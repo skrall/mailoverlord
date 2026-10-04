@@ -89,7 +89,7 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         MessageReleaseRequest: {
-            messageIds?: number[];
+            messageIds: number[];
             overrideTo?: boolean;
             overrideToAddresses?: string;
             overrideFrom?: boolean;
@@ -120,7 +120,7 @@ export interface components {
             };
         };
         MessageDeleteRequest: {
-            messageIds?: number[];
+            messageIds: number[];
         };
         MessageResponse: {
             successful?: boolean;
@@ -202,7 +202,7 @@ export interface operations {
                     "application/json": components["schemas"]["MessageReleaseResponse"];
                 };
             };
-            /** @description The body cannot be acted on: messageIds was absent, misspelled, null or empty, or an override was asked for without naming the addresses to substitute. Rejected rather than reported as a failed release, since nothing was attempted and nothing needs releasing again. */
+            /** @description The body cannot be acted on: messageIds was absent, misspelled, null or empty, or named more than 2000 messages; or an override was asked for without naming addresses that parse, which is what the substituted recipients or sender would be taken from. Rejected rather than reported as a failed release, since nothing was attempted and nothing needs releasing again. The limit is the most ids one page of the table can hold, which is the most a selection can contain. */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -235,7 +235,7 @@ export interface operations {
                     "application/json": components["schemas"]["MessageResponse"];
                 };
             };
-            /** @description The body named no messages to delete: messageIds was absent, misspelled, null or empty. Rejected rather than reported as a successful no-op, because deleting nothing while claiming success reads as though the messages are gone. */
+            /** @description The body cannot be acted on: messageIds was absent, misspelled, null or empty, or named more than 2000 messages. Rejected rather than reported as a successful no-op, because deleting nothing while claiming success reads as though the messages are gone. The limit is the most ids one page of the table can hold, which is the most a selection can contain. */
             400: {
                 headers: {
                     [name: string]: unknown;
