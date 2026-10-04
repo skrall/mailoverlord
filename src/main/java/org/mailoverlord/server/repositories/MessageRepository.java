@@ -1,7 +1,6 @@
 package org.mailoverlord.server.repositories;
 
 import java.time.Instant;
-import java.util.List;
 
 import org.mailoverlord.server.entities.Message;
 import org.mailoverlord.server.model.MessageFilter;
@@ -12,9 +11,15 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+/**
+ * Reading captured mail, for the application.
+ *
+ * <p>Derived finders are absent on purpose. The one this interface used to carry,
+ * {@code findByFrom}, was called only by tests, and a finder sitting here reads like a supported
+ * query; it now lives in {@code TestMessageRepository} in test scope. What the table needs is
+ * {@link #findSummaries}, which projects rather than hydrates entities.
+ */
 public interface MessageRepository extends JpaRepository<Message, Long> {
-
-    List<Message> findByFrom(String from);
 
     /**
      * One page of the table, without the message bodies, narrowed by the given criteria.
