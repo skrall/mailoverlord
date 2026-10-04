@@ -69,21 +69,7 @@ public abstract class AbstractMailoverlordIntegrationTest {
      */
     protected Message saveMessage(String from, String to, String subject)
             throws MessagingException, IOException {
-        MimeMessage mimeMessage = mailSender.createMimeMessage();
-        mimeMessage.setFrom(new InternetAddress(from));
-        mimeMessage.setRecipient(jakarta.mail.Message.RecipientType.TO, new InternetAddress(to));
-        mimeMessage.setSubject(subject, StandardCharsets.UTF_8.name());
-        mimeMessage.setText("Hi");
-
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        mimeMessage.writeTo(out);
-
-        Message message = new Message();
-        message.setFrom(from);
-        message.appendTo(to);
-        message.setSubject(subject);
-        message.setData(out.toByteArray());
-        return messageRepository.save(message);
+        return storeMessage(from, to, subject);
     }
 
     /**
@@ -93,9 +79,24 @@ public abstract class AbstractMailoverlordIntegrationTest {
      */
     protected Message saveMessageWithoutSubject(String from, String to)
             throws MessagingException, IOException {
+        return storeMessage(from, to, null);
+    }
+
+    /**
+     * The body shared by both fixtures, which differed only in whether they set a subject.
+     *
+     * <p>A null subject leaves the header off the MIME message entirely rather than setting it
+     * to an empty string, because that is what a sender who omitted it produces. The column
+     * takes the value as given, where null is already what an absent subject stores as.
+     */
+    private Message storeMessage(String from, String to, String subject)
+            throws MessagingException, IOException {
         MimeMessage mimeMessage = mailSender.createMimeMessage();
         mimeMessage.setFrom(new InternetAddress(from));
         mimeMessage.setRecipient(jakarta.mail.Message.RecipientType.TO, new InternetAddress(to));
+        if (subject != null) {
+            mimeMessage.setSubject(subject, StandardCharsets.UTF_8.name());
+        }
         mimeMessage.setText("Hi");
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -104,6 +105,7 @@ public abstract class AbstractMailoverlordIntegrationTest {
         Message message = new Message();
         message.setFrom(from);
         message.appendTo(to);
+        message.setSubject(subject);
         message.setData(out.toByteArray());
         return messageRepository.save(message);
     }
