@@ -71,6 +71,21 @@ export interface MessageResponse {
   errorMessage: string | null
 }
 
+/**
+ * What happened to one message in a release batch. Delivery reaches a real inbox and cannot be
+ * undone, so this is what a caller consults before retrying: retrying the whole batch re-sends
+ * whatever already went out.
+ */
+export interface MessageReleaseOutcome {
+  id: number
+  released: boolean
+  errorMessage: string | null
+}
+
+export interface MessageReleaseResponse extends MessageResponse {
+  outcomes: MessageReleaseOutcome[]
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -155,11 +170,21 @@ export async function deleteMessages(messageIds: number[]): Promise<MessageRespo
   return { successful: response.successful ?? false, errorMessage: response.errorMessage ?? null }
 }
 
-export async function releaseMessages(release: ReleaseRequest): Promise<MessageResponse> {
-  const response = await request<Schema['MessageResponse']>('/messages/release', {
+export async function releaseMessages(
+  release: ReleaseRequest,
+): Promise<MessageReleaseResponse> {
+  const response = await request<Schema['MessageReleaseResponse']>('/messages/release', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(release),
   })
-  return { successful: response.successful ?? false, errorMessage: response.errorMessage ?? null }
+  return {
+    successful: response.successful ?? false,
+    errorMessage: response.errorMessage ?? null,
+    outcomes: (response.outcomes ?? []).map(outcome => ({
+      id: outcome.id ?? 0,
+      released: outcome.released ?? false,
+      errorMessage: outcome.errorMessage ?? null,
+    })),
+  }
 }

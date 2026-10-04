@@ -12,6 +12,7 @@ import org.mailoverlord.server.model.MessageDeleteRequest;
 import org.mailoverlord.server.model.MessageDetail;
 import org.mailoverlord.server.model.MessageFilter;
 import org.mailoverlord.server.model.MessageReleaseRequest;
+import org.mailoverlord.server.model.MessageReleaseResponse;
 import org.mailoverlord.server.model.MessageResponse;
 import org.mailoverlord.server.model.MessageSummary;
 import org.mailoverlord.server.model.PageResponse;
@@ -174,27 +175,30 @@ public class MessageRestController {
 
     @Operation(summary = "Release messages", description = "Forwards the given messages to the "
             + "configured SMTP server, optionally overriding the from and to addresses.")
-    @ApiResponse(responseCode = "200", description = "Per-id outcome, including the error "
-            + "message when a message could not be released.",
+    @ApiResponse(responseCode = "200", description = "An outcome per requested id, in the order "
+            + "requested. Delivery is not reversible, so a batch can partly succeed: successful is "
+            + "true only when every id was released, and the per-id outcomes are what to consult "
+            + "before retrying, since retrying the whole batch re-sends what already went out.",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
-                    schema = @Schema(implementation = MessageResponse.class)))
+                    schema = @Schema(implementation = MessageReleaseResponse.class)))
     @ApiResponse(responseCode = "400", description = "The body named no messages to release: "
             + "messageIds was absent, misspelled, null or empty.",
             content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
                     schema = @Schema(implementation = ProblemDetail.class)))
     @PostMapping(value = "/messages/release", produces = MediaType.APPLICATION_JSON_VALUE)
-    public MessageResponse releaseMessages(@RequestBody MessageReleaseRequest messageReleaseRequest) {
+    public MessageReleaseResponse releaseMessages(@RequestBody MessageReleaseRequest messageReleaseRequest) {
         requireMessageIds(messageReleaseRequest.getMessageIds());
         logger.debug("Got MessageReleaseRequest, size: {}", messageReleaseRequest.getMessageIds().size());
-        MessageResponse response = new MessageResponse();
         try {
-            messageService.releaseMessage(messageReleaseRequest);
+            return messageService.releaseMessage(messageReleaseRequest);
         } catch (Throwable t) {
+            // The service reports a per-id outcome for anything that goes wrong while delivering.
+            // Reaching here means the batch failed before it ran, so every id is reported as
+            // unreleased rather than being left out of the response.
             logger.error("Error while trying to release messages.", t);
-            response.setSuccessful(false);
-            response.setErrorMessage(t.getMessage());
+            return MessageReleaseResponse.noneReleased(messageReleaseRequest.getMessageIds(),
+                    t.getMessage());
         }
-        return response;
     }
 
     /**

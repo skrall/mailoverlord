@@ -244,7 +244,35 @@ describe('releaseMessages', () => {
     await expect(releaseMessages({ messageIds: [1] })).resolves.toEqual({
       successful: false,
       errorMessage: 'Boom',
+      outcomes: [],
     })
+  })
+
+  /**
+   * A batch can partly succeed, and delivery cannot be undone, so the per-id outcomes are what
+   * says which messages already reached an inbox.
+   */
+  it('reports what happened to each message separately', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        successful: false,
+        errorMessage: 'Released 2 of 3 messages; 1 failed.',
+        outcomes: [
+          { id: 1, released: true },
+          { id: 2, released: false, errorMessage: 'smtp refused' },
+          { id: 3, released: true },
+        ],
+      }),
+    )
+
+    const response = await releaseMessages({ messageIds: [1, 2, 3] })
+
+    expect(response.successful).toBe(false)
+    expect(response.outcomes).toEqual([
+      { id: 1, released: true, errorMessage: null },
+      { id: 2, released: false, errorMessage: 'smtp refused' },
+      { id: 3, released: true, errorMessage: null },
+    ])
   })
 })
 
