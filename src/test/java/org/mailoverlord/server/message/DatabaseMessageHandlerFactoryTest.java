@@ -37,7 +37,7 @@ class DatabaseMessageHandlerFactoryTest extends AbstractMailoverlordIntegrationT
 
         mailSender.send(message);
 
-        List<Message> messages = messageRepository.findByFrom(FROM);
+        List<Message> messages = testMessageRepository.findByFrom(FROM);
         assertThat(messages).as("captured messages").hasSize(1);
         Message databaseMessage = messages.getFirst();
         assertThat(databaseMessage.getTo()).as("to addresses").isEqualTo(TO1 + "," + TO2);
@@ -70,7 +70,7 @@ class DatabaseMessageHandlerFactoryTest extends AbstractMailoverlordIntegrationT
 
         mailSender.send(mimeMessage);
 
-        List<Message> messages = messageRepository.findByFrom(FROM);
+        List<Message> messages = testMessageRepository.findByFrom(FROM);
         assertThat(messages).as("captured messages").hasSize(1);
         Message databaseMessage = messages.getFirst();
         assertThat(databaseMessage.getTo()).as("to addresses").isEqualTo(TO1 + "," + TO2 + "," + TO3);
@@ -88,7 +88,7 @@ class DatabaseMessageHandlerFactoryTest extends AbstractMailoverlordIntegrationT
 
         mailSender.send(message);
 
-        List<Message> messages = messageRepository.findByFrom(FROM);
+        List<Message> messages = testMessageRepository.findByFrom(FROM);
         assertThat(messages).as("captured messages").hasSize(1);
         assertThat(messages.getFirst().getSubject())
                 .as("subject, decoded from the encoded word the wire carries")
@@ -104,7 +104,7 @@ class DatabaseMessageHandlerFactoryTest extends AbstractMailoverlordIntegrationT
 
         mailSender.send(message);
 
-        List<Message> messages = messageRepository.findByFrom(FROM);
+        List<Message> messages = testMessageRepository.findByFrom(FROM);
         assertThat(messages).as("captured messages").hasSize(1);
         assertThat(messages.getFirst().getSubject())
                 .as("absent subject stays absent rather than becoming an empty string")
@@ -123,7 +123,7 @@ class DatabaseMessageHandlerFactoryTest extends AbstractMailoverlordIntegrationT
 
         mailSender.send(message);
 
-        List<Message> messages = messageRepository.findByFrom(FROM);
+        List<Message> messages = testMessageRepository.findByFrom(FROM);
         assertThat(messages).as("captured messages").hasSize(1);
         assertThat(messages.getFirst().getSubject())
                 .as("truncated to the column length")

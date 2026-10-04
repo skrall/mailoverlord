@@ -64,19 +64,19 @@ class MessageServiceTest extends AbstractMailoverlordIntegrationTest {
 
     @Test
     void releaseWithoutOverrideKeepsAddresses() {
-        List<Message> captured = messageRepository.findByFrom(FROM);
+        List<Message> captured = testMessageRepository.findByFrom(FROM);
         assertThat(captured).as("captured messages").hasSize(1);
 
         MessageReleaseRequest request = new MessageReleaseRequest();
         request.addMessageId(captured.getFirst().getId());
         messageService.releaseMessage(request);
 
-        assertThat(messageRepository.findByFrom(FROM)).as("re-captured messages").hasSize(2);
+        assertThat(testMessageRepository.findByFrom(FROM)).as("re-captured messages").hasSize(2);
     }
 
     @Test
     void releaseWithOverrideReplacesAddresses() {
-        List<Message> captured = messageRepository.findByFrom(FROM);
+        List<Message> captured = testMessageRepository.findByFrom(FROM);
         assertThat(captured).as("captured messages").hasSize(1);
 
         MessageReleaseRequest request = new MessageReleaseRequest();
@@ -87,25 +87,25 @@ class MessageServiceTest extends AbstractMailoverlordIntegrationTest {
         request.setOverrideToAddresses("override@override.com");
         messageService.releaseMessage(request);
 
-        assertThat(messageRepository.findByFrom(FROM)).as("original messages left alone").hasSize(1);
-        assertThat(messageRepository.findByFrom("override@override.com")).as("overridden messages").hasSize(1);
+        assertThat(testMessageRepository.findByFrom(FROM)).as("original messages left alone").hasSize(1);
+        assertThat(testMessageRepository.findByFrom("override@override.com")).as("overridden messages").hasSize(1);
     }
 
     @Test
     void deleteRemovesCapturedMessages() {
-        List<Message> captured = messageRepository.findByFrom(FROM);
+        List<Message> captured = testMessageRepository.findByFrom(FROM);
         assertThat(captured).as("captured messages").hasSize(1);
 
         MessageDeleteRequest request = new MessageDeleteRequest();
         request.addMessageId(captured.getFirst().getId());
         messageService.deleteMessage(request);
 
-        assertThat(messageRepository.findByFrom(FROM)).as("remaining messages").isEmpty();
+        assertThat(testMessageRepository.findByFrom(FROM)).as("remaining messages").isEmpty();
     }
 
     @Test
     void bodyOfMultipartMessageIsItsTextPart() {
-        List<Message> captured = messageRepository.findByFrom(FROM);
+        List<Message> captured = testMessageRepository.findByFrom(FROM);
         MessageDetail detail = messageService.getMessage(captured.getFirst().getId());
 
         assertThat(detail.body())
@@ -140,7 +140,7 @@ class MessageServiceTest extends AbstractMailoverlordIntegrationTest {
         nested.setContent(mixed);
         mailSender.send(nested);
 
-        Message captured = messageRepository.findByFrom(NESTED_FROM).getFirst();
+        Message captured = testMessageRepository.findByFrom(NESTED_FROM).getFirst();
         assertThat(messageService.getMessage(captured.getId()).body())
                 .as("the text part inside a nested multipart")
                 .contains("The deeply nested text body")
@@ -161,7 +161,7 @@ class MessageServiceTest extends AbstractMailoverlordIntegrationTest {
         htmlOnly.setContent(multipart);
         mailSender.send(htmlOnly);
 
-        Message captured = messageRepository.findByFrom(HTML_ONLY_FROM).getFirst();
+        Message captured = testMessageRepository.findByFrom(HTML_ONLY_FROM).getFirst();
         assertThat(messageService.getMessage(captured.getId()).body())
                 .as("no text part exists, so the raw MIME is shown rather than hiding the body")
                 .contains("only html here");

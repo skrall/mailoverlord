@@ -10,6 +10,7 @@ import jakarta.mail.internet.MimeMessage;
 import org.junit.jupiter.api.BeforeEach;
 import org.mailoverlord.server.entities.Message;
 import org.mailoverlord.server.repositories.MessageRepository;
+import org.mailoverlord.server.repositories.TestMessageRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -36,6 +37,16 @@ public abstract class AbstractMailoverlordIntegrationTest {
 
     @Autowired
     protected MessageRepository messageRepository;
+
+    /**
+     * Test-scope access to the messages the SMTP server captured.
+     *
+     * <p>Separate from {@link #messageRepository} because the finder it carries is not something
+     * the application offers. Anything the application genuinely needs belongs on the production
+     * repository; if a query only a test wants, it belongs here.
+     */
+    @Autowired
+    protected TestMessageRepository testMessageRepository;
 
     @BeforeEach
     void clearMessages() {
