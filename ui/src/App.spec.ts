@@ -227,6 +227,27 @@ describe('app shortcuts', () => {
     await flushPromises()
   }
 
+  /** Fails every release, which is how the server explains a rejected override. */
+  function failReleases(detail: string): void {
+    fetchMock.mockImplementation((url: string) =>
+      url.includes('/messages/release')
+        ? Promise.resolve(jsonResponse({ detail }, 400))
+        : Promise.resolve(jsonResponse(pageOf('Invoice'))),
+    )
+  }
+
+  /** Releases the selection, whatever it takes to get there. */
+  async function releaseSelection(wrapper: VueWrapper): Promise<void> {
+    await wrapper.findAll('button').find((b) => b.text() === 'Release')!.trigger('click')
+    await flushPromises()
+    await wrapper.find('[role="dialog"]').trigger('submit')
+    await flushPromises()
+  }
+
+  function banner(wrapper: VueWrapper): string {
+    return wrapper.find('[role="alert"]').exists() ? wrapper.find('[role="alert"]').text() : ''
+  }
+
   it('focuses the search box on /', async () => {
     const wrapper = mountApp()
     await flushPromises()
@@ -344,6 +365,78 @@ describe('app shortcuts', () => {
     expect(alert.text()).toContain(
       'overrideToAddresses must name at least one address when overrideTo is true.',
     )
+  })
+
+  describe('error banner', () => {
+    /**
+     * The sequence #21 is about: a release is rejected, the banner says why, and the user clicks
+     * a message to check whether it was one of the released ones. Reading a message cannot fix a
+     * release, so the explanation has to still be there afterwards.
+     */
+    it('keeps a failed release explained while the user reads a message', async () => {
+      failReleases('Message 1 could not be released: relay refused.')
+      const wrapper = mountApp()
+      await flushPromises()
+      await selectFirst(wrapper)
+      await releaseSelection(wrapper)
+      expect(banner(wrapper)).toContain('relay refused')
+
+      await wrapper.find('#message-row-1').trigger('click')
+      await flushPromises()
+
+      expect(banner(wrapper)).toContain('relay refused')
+    })
+
+    /** Retrying the action that failed is how the user clears it, so that has to work. */
+    it('clears the banner when the failed action is retried successfully', async () => {
+      failReleases('relay refused')
+      const wrapper = mountApp()
+      await flushPromises()
+      await selectFirst(wrapper)
+      await releaseSelection(wrapper)
+      expect(banner(wrapper)).not.toBe('')
+
+      fetchMock.mockImplementation(() => Promise.resolve(jsonResponse({ successful: true })))
+      await releaseSelection(wrapper)
+
+      expect(banner(wrapper)).toBe('')
+    })
+
+    /**
+     * The list reloads every ten seconds on its own. Nobody asked for that, so it cannot take the
+     * banner down with it.
+     */
+    it('does not let the background poll clear the banner', async () => {
+      failReleases('relay refused')
+      const wrapper = mountApp()
+      await flushPromises()
+      await selectFirst(wrapper)
+      await releaseSelection(wrapper)
+      expect(banner(wrapper)).toContain('relay refused')
+
+      await vi.advanceTimersByTimeAsync(10_000)
+      await flushPromises()
+
+      expect(banner(wrapper)).toContain('relay refused')
+    })
+
+    it('replaces an older error when a later action fails too', async () => {
+      failReleases('relay refused')
+      const wrapper = mountApp()
+      await flushPromises()
+      await selectFirst(wrapper)
+      await releaseSelection(wrapper)
+
+      fetchMock.mockImplementation((url: string) =>
+        url.includes('/messages/1')
+          ? Promise.resolve(jsonResponse({ detail: 'Message 1 is gone.' }, 404))
+          : Promise.resolve(jsonResponse(pageOf('Invoice'))),
+      )
+      await wrapper.find('#message-row-1').trigger('click')
+      await flushPromises()
+
+      expect(banner(wrapper)).toContain('Message 1 is gone.')
+    })
   })
 
   it('does not delete while a request is in flight', async () => {

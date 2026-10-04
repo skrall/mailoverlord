@@ -44,6 +44,38 @@ const detailLoading = ref(false)
 const busy = ref(false)
 const showReleaseDialog = ref(false)
 const error = ref<string | null>(null)
+
+/** Which action the banner is reporting on. */
+type FailingAction = 'load' | 'open' | 'delete' | 'release'
+
+const failedAction = ref<FailingAction | null>(null)
+
+/**
+ * Puts a failure on the banner and records which action it came from.
+ *
+ * <p>The owner is what lets a later success clear the banner without wiping an unrelated error.
+ * The two-argument alternative — clearing whenever anything succeeds — is what made the banner
+ * useless: a failed release explained itself, the user clicked a row to check whether that message
+ * was one of the released ones, and the explanation was gone. Reading a message cannot fix a
+ * release, so it has no business clearing a release's error.
+ */
+function reportError(action: FailingAction, cause: unknown): void {
+  error.value = cause instanceof Error ? cause.message : String(cause)
+  failedAction.value = action
+}
+
+/**
+ * Clears the banner, but only if it is reporting on this action.
+ *
+ * <p>A success elsewhere is not news: the ten second poll reloads the list every tick, and would
+ * otherwise clear whatever someone was reading without anyone having asked for it to go away.
+ */
+function clearError(action: FailingAction): void {
+  if (failedAction.value === action) {
+    error.value = null
+    failedAction.value = null
+  }
+}
 let pollTimer = 0
 /**
  * Identifies the most recent list request, so a slower earlier one cannot overwrite it.
@@ -70,7 +102,6 @@ const allSelected = computed(
 async function load(): Promise<void> {
   const request = ++latestLoad
   busy.value = true
-  error.value = null
   try {
     const result: MessagePage = await listMessages({
       page: page.value,
@@ -94,11 +125,12 @@ async function load(): Promise<void> {
       activeId.value = null
       detail.value = null
     }
+    clearError('load')
   } catch (cause) {
     // A superseded request has nothing useful to say: its failure belongs to a filter the
     // user has already moved on from, and reporting it would blame the current one.
     if (request === latestLoad) {
-      error.value = cause instanceof Error ? cause.message : String(cause)
+      reportError('load', cause)
     }
   } finally {
     // Only the newest request owns the busy flag, otherwise the first one to finish would
@@ -126,12 +158,12 @@ function applyFilter(next: MessageFilterRequest): void {
 async function open(id: number): Promise<void> {
   activeId.value = id
   detailLoading.value = true
-  error.value = null
   try {
     detail.value = await getMessage(id)
+    clearError('open')
   } catch (cause) {
     detail.value = null
-    error.value = cause instanceof Error ? cause.message : String(cause)
+    reportError('open', cause)
   } finally {
     detailLoading.value = false
   }
@@ -174,17 +206,17 @@ async function removeSelected(): Promise<void> {
     return
   }
   busy.value = true
-  error.value = null
   try {
     const response = await deleteMessages(selectedIds.value)
     if (!response.successful) {
-      error.value = response.errorMessage ?? 'The server could not delete those messages.'
+      reportError('delete', response.errorMessage ?? 'The server could not delete those messages.')
     } else {
       selectedIds.value = []
       await load()
+      clearError('delete')
     }
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : String(cause)
+    reportError('delete', cause)
   } finally {
     busy.value = false
   }
@@ -193,7 +225,6 @@ async function removeSelected(): Promise<void> {
 async function release(options: { overrideTo: string; overrideFrom: string }): Promise<void> {
   showReleaseDialog.value = false
   busy.value = true
-  error.value = null
   try {
     const response = await releaseMessages({
       messageIds: selectedIds.value,
@@ -203,12 +234,13 @@ async function release(options: { overrideTo: string; overrideFrom: string }): P
       overrideFromAddress: options.overrideFrom || undefined,
     })
     if (!response.successful) {
-      error.value = response.errorMessage ?? 'The server could not release those messages.'
+      reportError('release', response.errorMessage ?? 'The server could not release those messages.')
     } else {
       selectedIds.value = []
+      clearError('release')
     }
   } catch (cause) {
-    error.value = cause instanceof Error ? cause.message : String(cause)
+    reportError('release', cause)
   } finally {
     busy.value = false
   }
