@@ -99,6 +99,19 @@ export interface components {
             successful?: boolean;
             errorMessage?: string;
         };
+        ProblemDetail: {
+            /** Format: uri */
+            type?: string;
+            title?: string;
+            /** Format: int32 */
+            status?: number;
+            detail?: string;
+            /** Format: uri */
+            instance?: string;
+            properties?: {
+                [key: string]: unknown;
+            };
+        };
         MessageDeleteRequest: {
             messageIds?: number[];
         };
@@ -134,7 +147,7 @@ export interface components {
             sizeBytes?: number;
             subject?: string;
         };
-        PageResponseMessageSummary: {
+        PageResponse: {
             content?: components["schemas"]["MessageSummary"][];
             /** Format: int32 */
             number?: number;
@@ -169,13 +182,22 @@ export interface operations {
             };
         };
         responses: {
-            /** @description OK */
+            /** @description Per-id outcome, including the error message when a message could not be released. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            /** @description The body named no messages to release: messageIds was absent, misspelled, null or empty. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -193,13 +215,22 @@ export interface operations {
             };
         };
         responses: {
-            /** @description OK */
+            /** @description Per-id outcome. This reports failures in the body rather than with a status code, so a partially successful request is still a 200. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["MessageResponse"];
+                };
+            };
+            /** @description The body named no messages to delete: messageIds was absent, misspelled, null or empty. Rejected rather than reported as a successful no-op, because deleting nothing while claiming success reads as though the messages are gone. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -215,13 +246,31 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description OK */
+            /** @description The message, in full. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["MessageDetail"];
+                };
+            };
+            /** @description The id is not a number. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
+                };
+            };
+            /** @description No message has that id. It may have been deleted, or the id may never have existed. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };
@@ -242,13 +291,22 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description OK */
+            /** @description A page of matching messages. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PageResponseMessageSummary"];
+                    "application/json": components["schemas"]["PageResponse"];
+                };
+            };
+            /** @description A parameter could not be understood: a sort field other than the four above, a filter timestamp that is not an ISO-8601 instant, or a page or size outside the accepted range. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetail"];
                 };
             };
         };

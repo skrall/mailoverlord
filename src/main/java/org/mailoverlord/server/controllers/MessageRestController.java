@@ -1,6 +1,9 @@
 package org.mailoverlord.server.controllers;
 
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.Instant;
 import java.util.List;
@@ -15,6 +18,7 @@ import org.mailoverlord.server.model.PageResponse;
 import org.mailoverlord.server.service.MessageService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.ProblemDetail;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -72,6 +76,14 @@ public class MessageRestController {
             + "matching on a case-insensitive substring, and they are combined with AND. "
             + "receivedFrom and receivedTo are inclusive ISO-8601 instants bounding when the "
             + "mail arrived. The total reflects the filter, not the whole mailbox.")
+    @ApiResponse(responseCode = "200", description = "A page of matching messages.",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = PageResponse.class)))
+    @ApiResponse(responseCode = "400", description = "A parameter could not be understood: a sort "
+            + "field other than the four above, a filter timestamp that is not an ISO-8601 "
+            + "instant, or a page or size outside the accepted range.",
+            content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+                    schema = @Schema(implementation = ProblemDetail.class)))
     @GetMapping(value = "/messages/list", produces = MediaType.APPLICATION_JSON_VALUE)
     public PageResponse<MessageSummary> getTableData(
             @PageableDefault(size = 25,
@@ -118,12 +130,33 @@ public class MessageRestController {
 
     @Operation(summary = "Get one message", description = "Returns a single message in full, "
             + "including its text body.")
+    @ApiResponse(responseCode = "200", description = "The message, in full.",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = MessageDetail.class)))
+    @ApiResponse(responseCode = "404", description = "No message has that id. It may have been "
+            + "deleted, or the id may never have existed.",
+            content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+                    schema = @Schema(implementation = ProblemDetail.class)))
+    @ApiResponse(responseCode = "400", description = "The id is not a number.",
+            content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+                    schema = @Schema(implementation = ProblemDetail.class)))
     @GetMapping(value = "/messages/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
     public MessageDetail getMessage(@PathVariable Long id) {
         return messageService.getMessage(id);
     }
 
     @Operation(summary = "Delete messages", description = "Permanently removes the given messages.")
+    @ApiResponse(responseCode = "200", description = "Per-id outcome. This reports failures "
+            + "in the body rather than with a status code, so a partially successful request is "
+            + "still a 200.",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = MessageResponse.class)))
+    @ApiResponse(responseCode = "400", description = "The body named no messages to delete: "
+            + "messageIds was absent, misspelled, null or empty. Rejected rather than reported "
+            + "as a successful no-op, because deleting nothing while claiming success reads as "
+            + "though the messages are gone.",
+            content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+                    schema = @Schema(implementation = ProblemDetail.class)))
     @PostMapping(value = "/messages/delete", produces = MediaType.APPLICATION_JSON_VALUE)
     public MessageResponse deleteMessages(@RequestBody MessageDeleteRequest messageDeleteRequest) {
         requireMessageIds(messageDeleteRequest.getMessageIds());
@@ -141,6 +174,14 @@ public class MessageRestController {
 
     @Operation(summary = "Release messages", description = "Forwards the given messages to the "
             + "configured SMTP server, optionally overriding the from and to addresses.")
+    @ApiResponse(responseCode = "200", description = "Per-id outcome, including the error "
+            + "message when a message could not be released.",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                    schema = @Schema(implementation = MessageResponse.class)))
+    @ApiResponse(responseCode = "400", description = "The body named no messages to release: "
+            + "messageIds was absent, misspelled, null or empty.",
+            content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
+                    schema = @Schema(implementation = ProblemDetail.class)))
     @PostMapping(value = "/messages/release", produces = MediaType.APPLICATION_JSON_VALUE)
     public MessageResponse releaseMessages(@RequestBody MessageReleaseRequest messageReleaseRequest) {
         requireMessageIds(messageReleaseRequest.getMessageIds());

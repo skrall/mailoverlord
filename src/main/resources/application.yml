@@ -2,6 +2,13 @@ spring:
   application:
     name: mailoverlord
 
+  mvc:
+    # RFC 9457 error bodies. Without this the error statuses come back with no body at
+    # all, so the reason a request was rejected is only visible in the servlet response's
+    # error message and never reaches the client.
+    problemdetails:
+      enabled: true
+
   # Captured mail is valuable during a test run, so never drop the schema out from
   # under it. Hibernate adds any missing tables and columns on startup.
   jpa:
