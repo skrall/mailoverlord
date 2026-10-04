@@ -1,7 +1,11 @@
 package org.mailoverlord.server.model;
 
 /**
- * Response returned from MessageDelete and MessageRequest operations.
+ * Response returned from the delete operation.
+ *
+ * <p>Delete is a single transaction, so it is genuinely all or nothing and a flat flag describes
+ * it honestly. Release cannot be described this way, since each message is delivered separately to
+ * a real address; it answers with {@link MessageReleaseResponse} instead.
  */
 public class MessageResponse {
 

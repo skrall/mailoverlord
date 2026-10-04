@@ -9,11 +9,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.ValueSource;
 import org.mailoverlord.server.AbstractMailoverlordIntegrationTest;
 
 /**
@@ -55,12 +55,18 @@ class ResourceCacheConfigTest extends AbstractMailoverlordIntegrationTest {
                 .andExpect(forwardedUrl("index.html"));
     }
 
-    @ParameterizedTest(name = "{0} is cached indefinitely")
-    @ValueSource(strings = {"/assets/index-pjQ1KCNc.js", "/assets/index-EdmC6YAF.css"})
-    void hashedAssetsAreCachedIndefinitely(String path) throws Exception {
-        mockMvc.perform(get(path))
-                .andExpect(status().isOk())
-                .andExpect(header().string("Cache-Control", HASHED_ASSET_CACHE_CONTROL));
+    /**
+     * Read from the built document rather than named literally, since the names are content
+     * hashes and change with every UI edit. Naming them here made this fail on any change to the
+     * UI, which is a test that cries wolf about the very thing it is meant to protect.
+     */
+    @Test
+    void hashedAssetsAreCachedIndefinitely() throws Exception {
+        for (String reference : assetReferences()) {
+            mockMvc.perform(get(reference))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("Cache-Control", HASHED_ASSET_CACHE_CONTROL));
+        }
     }
 
     @Test
@@ -75,21 +81,24 @@ class ResourceCacheConfigTest extends AbstractMailoverlordIntegrationTest {
      * the old file for a year and the change would never reach anyone.
      */
     @Test
-    void everyAssetTheDocumentReferencesIsContentHashed() throws Exception {
-        String index = readIndexHtml();
-        Matcher matcher = Pattern.compile("(?:src|href)=\"(/[^\"]+)\"").matcher(index);
-        Matcher hashed = Pattern.compile("^/assets/[^/]+-[\\w-]{8,}\\.(?:js|css)$").matcher("");
-
-        assertThat(matcher.results().map(result -> result.group(1)))
+    void everyAssetTheDocumentReferencesIsContentHashed() throws IOException {
+        assertThat(assetReferences())
                 .as("references in index.html")
                 .isNotEmpty()
-                .allSatisfy(reference -> {
-                    hashed.reset(reference);
-                    assertThat(hashed.matches())
-                            .as("%s must carry a content hash to be safe to cache for a year",
-                                    reference)
-                            .isTrue();
-                });
+                .allSatisfy(reference -> assertThat(reference)
+                        .as("%s must carry a content hash to be safe to cache for a year",
+                                reference)
+                        .matches("^/assets/[^/]+-[\\w-]{8,}\\.(?:js|css)$"));
+    }
+
+    /**
+     * Every local asset the built entry document points at, taken from the document itself.
+     */
+    private static List<String> assetReferences() throws IOException {
+        Matcher matcher = Pattern.compile("(?:src|href)=\"(/[^\"]+)\"").matcher(readIndexHtml());
+        List<String> references = new ArrayList<>();
+        matcher.results().forEach(result -> references.add(result.group(1)));
+        return references;
     }
 
     private static String readIndexHtml() throws IOException {

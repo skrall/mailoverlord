@@ -95,9 +95,16 @@ export interface components {
             overrideFrom?: boolean;
             overrideFromAddress?: string;
         };
-        MessageResponse: {
+        MessageReleaseOutcome: {
+            /** Format: int64 */
+            id?: number;
+            released?: boolean;
+            errorMessage?: string;
+        };
+        MessageReleaseResponse: {
             successful?: boolean;
             errorMessage?: string;
+            outcomes?: components["schemas"]["MessageReleaseOutcome"][];
         };
         ProblemDetail: {
             /** Format: uri */
@@ -114,6 +121,10 @@ export interface components {
         };
         MessageDeleteRequest: {
             messageIds?: number[];
+        };
+        MessageResponse: {
+            successful?: boolean;
+            errorMessage?: string;
         };
         MessageDetail: {
             /** Format: int64 */
@@ -182,13 +193,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Per-id outcome, including the error message when a message could not be released. */
+            /** @description An outcome per requested id, in the order requested. Delivery is not reversible, so a batch can partly succeed: successful is true only when every id was released, and the per-id outcomes are what to consult before retrying, since retrying the whole batch re-sends what already went out. */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["MessageResponse"];
+                    "application/json": components["schemas"]["MessageReleaseResponse"];
                 };
             };
             /** @description The body named no messages to release: messageIds was absent, misspelled, null or empty. */

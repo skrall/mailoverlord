@@ -221,7 +221,30 @@ class MessageRestControllerTest extends AbstractMailoverlordIntegrationTest {
                         .content("{\"messageIds\": [%d]}".formatted(message.getId())))
                 .andExpect(status().isOk())
                 .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.successful").value(true));
+                .andExpect(jsonPath("$.successful").value(true))
+                .andExpect(jsonPath("$.errorMessage").doesNotExist())
+                .andExpect(jsonPath("$.outcomes.length()").value(1))
+                .andExpect(jsonPath("$.outcomes[0].id").value(message.getId()))
+                .andExpect(jsonPath("$.outcomes[0].released").value(true))
+                .andExpect(jsonPath("$.outcomes[0].errorMessage").doesNotExist());
+    }
+
+    /**
+     * A release that reaches a message that is not there still answers 200, and says which id it
+     * could not do, so the caller is not left believing the whole batch went out.
+     */
+    @Test
+    void releaseReportsAnIdThatDoesNotExist() throws Exception {
+        mockMvc.perform(post("/messages/release")
+                        .accept(MediaType.APPLICATION_JSON)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"messageIds\": [999999]}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.successful").value(false))
+                .andExpect(jsonPath("$.outcomes.length()").value(1))
+                .andExpect(jsonPath("$.outcomes[0].id").value(999999))
+                .andExpect(jsonPath("$.outcomes[0].released").value(false))
+                .andExpect(jsonPath("$.outcomes[0].errorMessage").value("No message with id 999999"));
     }
 
     @Test

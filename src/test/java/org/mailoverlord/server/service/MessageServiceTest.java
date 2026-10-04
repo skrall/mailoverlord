@@ -74,6 +74,30 @@ class MessageServiceTest extends AbstractMailoverlordIntegrationTest {
         assertThat(testMessageRepository.findByFrom(FROM)).as("re-captured messages").hasSize(2);
     }
 
+    /**
+     * The recipients the message went out to, read back off the re-captured copy.
+     *
+     * <p>Asserting only that a message was re-captured does not show who it was sent to, since
+     * mailoverlord captures whatever arrives on its own SMTP port. Reading the recipients back is
+     * what makes the address handling below observable.
+     */
+    @Test
+    void releaseWithoutOverrideDeliversToTheOriginalRecipients() {
+        Message original = testMessageRepository.findByFrom(FROM).getFirst();
+
+        MessageReleaseRequest request = new MessageReleaseRequest();
+        request.addMessageId(original.getId());
+        messageService.releaseMessage(request);
+
+        Message redelivered = reCapturedCopyOf(original);
+        // BCC is absent by design rather than by oversight: it arrived as an envelope recipient,
+        // and the SMTP server strips the Bcc header when it stores the message, so there is no
+        // longer anything in the stored MIME to re-send it to. The original row still records the
+        // envelope, which is why it shows three recipients and this one shows two.
+        assertThat(recipientsOf(redelivered)).as("recipients of the re-sent message")
+                .containsExactlyInAnyOrder("to@email.com", "cc@email.com");
+    }
+
     @Test
     void releaseWithOverrideReplacesAddresses() {
         List<Message> captured = testMessageRepository.findByFrom(FROM);
@@ -89,6 +113,47 @@ class MessageServiceTest extends AbstractMailoverlordIntegrationTest {
 
         assertThat(testMessageRepository.findByFrom(FROM)).as("original messages left alone").hasSize(1);
         assertThat(testMessageRepository.findByFrom("override@override.com")).as("overridden messages").hasSize(1);
+    }
+
+    /**
+     * The original TO, CC and BCC have to be dropped, not merely added to. Keeping any of them
+     * delivers the message to real people who were meant to be excluded, and none of the other
+     * assertions here would notice.
+     */
+    @Test
+    void releaseWithOverrideDropsEveryOriginalRecipient() {
+        Message original = testMessageRepository.findByFrom(FROM).getFirst();
+        assertThat(recipientsOf(original)).as("the fixture really does carry TO, CC and BCC")
+                .containsExactlyInAnyOrder("to@email.com", "cc@email.com", "bcc@email.com");
+
+        MessageReleaseRequest request = new MessageReleaseRequest();
+        request.addMessageId(original.getId());
+        request.setOverrideTo(true);
+        request.setOverrideToAddresses("only@override.com");
+        messageService.releaseMessage(request);
+
+        Message redelivered = reCapturedCopyOf(original);
+        assertThat(recipientsOf(redelivered)).as("recipients of the re-sent message")
+                .containsExactly("only@override.com");
+    }
+
+    /**
+     * The re-captured copy of a released message, told apart from the original because releasing
+     * does not move the message, it sends a second one back in through the SMTP port.
+     */
+    /**
+     * The recipients a message was delivered to, split out of the comma-separated column.
+     */
+    private static List<String> recipientsOf(Message message) {
+        return message.getTo() == null ? List.of() : List.of(message.getTo().split(","));
+    }
+
+    private Message reCapturedCopyOf(Message original) {
+        List<Message> copies = testMessageRepository.findByFrom(original.getFrom()).stream()
+                .filter(message -> !message.getId().equals(original.getId()))
+                .toList();
+        assertThat(copies).as("re-captured copy of the released message").hasSize(1);
+        return copies.getFirst();
     }
 
     @Test

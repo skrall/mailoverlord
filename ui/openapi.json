@@ -37,11 +37,11 @@
         },
         "responses": {
           "200": {
-            "description": "Per-id outcome, including the error message when a message could not be released.",
+            "description": "An outcome per requested id, in the order requested. Delivery is not reversible, so a batch can partly succeed: successful is true only when every id was released, and the per-id outcomes are what to consult before retrying, since retrying the whole batch re-sends what already went out.",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/MessageResponse"
+                  "$ref": "#/components/schemas/MessageReleaseResponse"
                 }
               }
             }
@@ -265,7 +265,22 @@
           }
         }
       },
-      "MessageResponse": {
+      "MessageReleaseOutcome": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "released": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string"
+          }
+        }
+      },
+      "MessageReleaseResponse": {
         "type": "object",
         "properties": {
           "successful": {
@@ -273,6 +288,12 @@
           },
           "errorMessage": {
             "type": "string"
+          },
+          "outcomes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessageReleaseOutcome"
+            }
           }
         }
       },
@@ -312,6 +333,17 @@
               "type": "integer",
               "format": "int64"
             }
+          }
+        }
+      },
+      "MessageResponse": {
+        "type": "object",
+        "properties": {
+          "successful": {
+            "type": "boolean"
+          },
+          "errorMessage": {
+            "type": "string"
           }
         }
       },
