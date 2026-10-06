@@ -2,8 +2,15 @@ package org.mailoverlord.server.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.List;
 
+import jakarta.activation.DataHandler;
+import jakarta.activation.DataSource;
 import jakarta.mail.BodyPart;
 import jakarta.mail.MessagingException;
 import jakarta.mail.Multipart;
@@ -17,6 +24,7 @@ import org.mailoverlord.server.AbstractMailoverlordIntegrationTest;
 import org.mailoverlord.server.entities.Message;
 import org.mailoverlord.server.model.MessageDeleteRequest;
 import org.mailoverlord.server.model.MessageDetail;
+import org.mailoverlord.server.model.MessagePart;
 import org.mailoverlord.server.model.MessageReleaseRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -32,9 +40,38 @@ class MessageServiceTest extends AbstractMailoverlordIntegrationTest {
     private static final String FROM = "messageservicetest@email.com";
     private static final String NESTED_FROM = "nested@email.com";
     private static final String HTML_ONLY_FROM = "htmlonly@email.com";
+    private static final String PDF_FROM = "pdf@email.com";
+    private static final String BARE_FROM = "bare@email.com";
 
     @Autowired
     MessageService messageService;
+
+    @Autowired
+    org.mailoverlord.server.repositories.MessageRepository messageRepository;
+
+    /** A {@link DataSource} over bytes already in memory, for building an attachment in a test. */
+    private record ByteArrayDataSource(byte[] bytes, String contentType) implements DataSource {
+
+        @Override
+        public InputStream getInputStream() {
+            return new ByteArrayInputStream(bytes);
+        }
+
+        @Override
+        public OutputStream getOutputStream() {
+            throw new UnsupportedOperationException("this source is read only");
+        }
+
+        @Override
+        public String getContentType() {
+            return contentType;
+        }
+
+        @Override
+        public String getName() {
+            return "attachment";
+        }
+    }
 
     @BeforeEach
     void sendMessageToCapture() throws MessagingException {
@@ -230,5 +267,180 @@ class MessageServiceTest extends AbstractMailoverlordIntegrationTest {
         assertThat(messageService.getMessage(captured.getId()).body())
                 .as("no text part exists, so the raw MIME is shown rather than hiding the body")
                 .contains("only html here");
+    }
+
+    @Test
+    void everyPartOfAMultipartMessageIsListed() {
+        List<Message> captured = testMessageRepository.findByFrom(FROM);
+        MessageDetail detail = messageService.getMessage(captured.getFirst().getId());
+
+        assertThat(detail.parts())
+                .as("both parts of the message, not only the ones with a filename")
+                .extracting(MessagePart::contentType)
+                .containsExactly("text/plain", "text/html");
+    }
+
+    /**
+     * Only the part the reader is actually looking at is marked, even though a multipart/mixed
+     * message carries both a text and an HTML version of the same body.
+     */
+    @Test
+    void exactlyOnePartIsMarkedAsTheDisplayedBody() {
+        List<Message> captured = testMessageRepository.findByFrom(FROM);
+        MessageDetail detail = messageService.getMessage(captured.getFirst().getId());
+
+        assertThat(detail.parts())
+                .filteredOn(MessagePart::displayedBody)
+                .as("the part MessageDetail.body came from")
+                .singleElement()
+                .satisfies(part -> assertThat(part.contentType()).isEqualTo("text/plain"));
+    }
+
+    @Test
+    void partsOfANestedMultipartMessageAreListed() throws MessagingException {
+        MimeMessage nested = mailSender.createMimeMessage();
+        nested.setFrom(new InternetAddress(NESTED_FROM));
+        nested.addRecipients(jakarta.mail.Message.RecipientType.TO, "to@email.com");
+        nested.setSubject("nested multipart");
+
+        BodyPart textPart = new MimeBodyPart();
+        textPart.setText("The deeply nested text body.");
+
+        BodyPart htmlPart = new MimeBodyPart();
+        htmlPart.setContent("<HTML><BODY><P>html</P></BODY></HTML>", "text/html");
+
+        Multipart alternative = new MimeMultipart();
+        alternative.addBodyPart(textPart);
+        alternative.addBodyPart(htmlPart);
+
+        BodyPart wrapper = new MimeBodyPart();
+        wrapper.setContent(alternative);
+
+        Multipart mixed = new MimeMultipart();
+        mixed.addBodyPart(wrapper);
+        nested.setContent(mixed);
+        mailSender.send(nested);
+
+        Message captured = testMessageRepository.findByFrom(NESTED_FROM).getFirst();
+        assertThat(messageService.getMessage(captured.getId()).parts())
+                .as("descending into the wrapper finds the parts inside it")
+                .extracting(MessagePart::contentType)
+                .containsExactly("text/plain", "text/html");
+    }
+
+    /**
+     * An HTML-only message has no attachment at all, and listing only attachments would leave it
+     * looking empty. The part is reported instead, which is also what explains why its text is
+     * shown as raw MIME.
+     */
+    @Test
+    void htmlOnlyMessageStillReportsItsPart() throws MessagingException {
+        MimeMessage htmlOnly = mailSender.createMimeMessage();
+        htmlOnly.setFrom(new InternetAddress(HTML_ONLY_FROM));
+        htmlOnly.addRecipients(jakarta.mail.Message.RecipientType.TO, "to@email.com");
+        htmlOnly.setSubject("html only");
+
+        BodyPart htmlPart = new MimeBodyPart();
+        htmlPart.setContent("<HTML><BODY><P>only html here</P></BODY></HTML>", "text/html");
+        Multipart multipart = new MimeMultipart();
+        multipart.addBodyPart(htmlPart);
+        htmlOnly.setContent(multipart);
+        mailSender.send(htmlOnly);
+
+        Message captured = testMessageRepository.findByFrom(HTML_ONLY_FROM).getFirst();
+        assertThat(messageService.getMessage(captured.getId()).parts())
+                .singleElement()
+                .satisfies(part -> {
+                    assertThat(part.contentType()).isEqualTo("text/html");
+                    assertThat(part.filename()).isNull();
+                    assertThat(part.displayedBody()).isFalse();
+                });
+    }
+
+    /**
+     * The reason this issue exists: an attachment was captured, stored, and invisible.
+     */
+    @Test
+    void anAttachmentIsReportedWithItsNameTypeAndSize() throws MessagingException {
+        byte[] pdf = "%PDF-1.4 invoice, twelve pages of it".getBytes(StandardCharsets.UTF_8);
+        MimeMessage withPdf = mailSender.createMimeMessage();
+        withPdf.setFrom(new InternetAddress(PDF_FROM));
+        withPdf.addRecipients(jakarta.mail.Message.RecipientType.TO, "to@email.com");
+        withPdf.setSubject("invoice attached");
+
+        BodyPart caption = new MimeBodyPart();
+        caption.setText("Invoice for March is attached.");
+
+        BodyPart attachment = new MimeBodyPart();
+        attachment.setDataHandler(new DataHandler(new ByteArrayDataSource(pdf, "application/pdf")));
+        attachment.setFileName("invoice.pdf");
+        attachment.setDisposition(BodyPart.ATTACHMENT);
+
+        Multipart mixed = new MimeMultipart();
+        mixed.addBodyPart(caption);
+        mixed.addBodyPart(attachment);
+        withPdf.setContent(mixed);
+        mailSender.send(withPdf);
+
+        Message captured = testMessageRepository.findByFrom(PDF_FROM).getFirst();
+        assertThat(messageService.getMessage(captured.getId()).parts())
+                .filteredOn(part -> "attachment".equals(part.disposition()))
+                .singleElement()
+                .satisfies(part -> {
+                    assertThat(part.filename()).isEqualTo("invoice.pdf");
+                    assertThat(part.contentType())
+                            .as("the type without its parameters")
+                            .isEqualTo("application/pdf");
+                    assertThat(part.sizeBytes())
+                            .as("the decoded size, not the base64 length")
+                            .isEqualTo(pdf.length);
+                });
+    }
+
+    /**
+     * A message whose whole content is one attachment has no body part to descend into, and the
+     * message itself is the part.
+     */
+    @Test
+    void aMessageThatIsOnlyAnAttachmentReportsIt() throws MessagingException {
+        byte[] pdf = "%PDF-1.4".getBytes(StandardCharsets.UTF_8);
+        MimeMessage bare = mailSender.createMimeMessage();
+        bare.setFrom(new InternetAddress(BARE_FROM));
+        bare.addRecipients(jakarta.mail.Message.RecipientType.TO, "to@email.com");
+        bare.setSubject("bare attachment");
+        bare.setDataHandler(new DataHandler(new ByteArrayDataSource(pdf, "application/pdf")));
+        mailSender.send(bare);
+
+        Message captured = testMessageRepository.findByFrom(BARE_FROM).getFirst();
+        assertThat(messageService.getMessage(captured.getId()).parts())
+                .singleElement()
+                .satisfies(part -> {
+                    assertThat(part.contentType()).isEqualTo("application/pdf");
+                    assertThat(part.sizeBytes()).isNotNull();
+                    assertThat(part.displayedBody())
+                            .as("there is no text part, so nothing is shown as the body")
+                            .isFalse();
+                });
+    }
+
+    /**
+     * Nothing is claimed about a message that has no content to describe. Inventing an empty part
+     * would read as though the message arrived with one empty part rather than without content.
+     *
+     * <p>Note that empty bytes are not this case: an empty MIME stream parses to one empty
+     * {@code text/plain} part, and reporting that is honest rather than a special case.
+     */
+    @Test
+    void aMessageWithNoStoredContentReportsNoParts() {
+        Message stored = new Message();
+        stored.setFrom("empty@email.com");
+        stored.setTo("to@email.com");
+        stored.setSubject("no content");
+        stored.setReceivedTimestamp(Instant.parse("2026-01-01T00:00:00Z"));
+        Long id = messageRepository.save(stored).getId();
+
+        MessageDetail detail = messageService.getMessage(id);
+        assertThat(detail.parts()).isEmpty();
+        assertThat(detail.body()).isNull();
     }
 }

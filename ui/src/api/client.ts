@@ -20,8 +20,26 @@ type Present<T> = { [K in keyof T]-?: NonNullable<T[K]> }
 export type MessageSummary = Omit<Present<Schema['MessageSummary']>, 'releasedTimestamp'> & {
   releasedTimestamp: NonNullable<Schema['MessageSummary']['releasedTimestamp']> | null
 }
-export type MessageDetail = Omit<Present<Schema['MessageDetail']>, 'releasedTimestamp'> & {
+/**
+ * One leaf of a message's MIME structure, as {@link MessageDetail} reports it.
+ *
+ * <p>A part is named by its filename when the sender gave one and by its content type
+ * otherwise. The size is the decoded length, which the sender controls and which is
+ * therefore absent rather than zero when it is not known.
+ */
+type MessagePartSchema = Schema['MessagePart']
+export type MessagePart = Omit<
+  Present<MessagePartSchema>,
+  'filename' | 'sizeBytes' | 'disposition'
+> & {
+  filename: NonNullable<MessagePartSchema['filename']> | null
+  sizeBytes: NonNullable<MessagePartSchema['sizeBytes']> | null
+  disposition: NonNullable<MessagePartSchema['disposition']> | null
+}
+
+export type MessageDetail = Omit<Present<Schema['MessageDetail']>, 'releasedTimestamp' | 'parts'> & {
   releasedTimestamp: NonNullable<Schema['MessageDetail']['releasedTimestamp']> | null
+  parts: MessagePart[]
 }
 
 /**
@@ -170,6 +188,16 @@ function normaliseSummary(summary: Schema['MessageSummary']): MessageSummary {
   }
 }
 
+function normalisePart(part: Schema['MessagePart']): MessagePart {
+  return {
+    filename: part.filename ?? null,
+    contentType: part.contentType ?? '',
+    sizeBytes: part.sizeBytes ?? null,
+    disposition: part.disposition ?? null,
+    displayedBody: part.displayedBody ?? false
+  }
+}
+
 export async function listMessages(pageRequest: MessagePageRequest): Promise<MessagePage> {
   const query = new URLSearchParams({ page: String(pageRequest.page), size: String(pageRequest.size) })
   if (pageRequest.sort) {
@@ -204,8 +232,9 @@ export async function getMessage(id: number): Promise<MessageDetail> {
     to: message.to ?? '',
     receivedTimestamp: message.receivedTimestamp ?? '',
     releasedTimestamp: message.releasedTimestamp ?? null,
-    subject: message.subject ?? '',
+subject: message.subject ?? '',
     body: message.body ?? '',
+    parts: (message.parts ?? []).map(normalisePart)
   }
 }
 

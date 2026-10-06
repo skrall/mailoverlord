@@ -138,7 +138,10 @@ public class MessageRestController {
     }
 
     @Operation(summary = "Get one message", description = "Returns a single message in full, "
-            + "including its text body.")
+            + "including its text body and the metadata of every part of its MIME structure. "
+            + "Attachments are described, not served: a part reports its filename, content type, "
+            + "decoded size and disposition, and size is absent when the message did not declare "
+            + "one.")
     @ApiResponse(responseCode = "200", description = "The message, in full.",
             content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
                     schema = @Schema(implementation = MessageDetail.class)))

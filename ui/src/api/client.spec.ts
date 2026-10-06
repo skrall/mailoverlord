@@ -211,6 +211,28 @@ describe('getMessage', () => {
 
     await expect(getMessage(1)).resolves.toMatchObject({ body: '' })
   })
+
+  /**
+   * The server reports an attachment with no filename, an unknown size and no disposition as
+   * nulls, so they have to survive the trip as nulls. Coerced to 0 or undefined they would
+   * read as an empty unnamed file instead of absent facts.
+   */
+  it('keeps an unknown filename and size as null rather than inventing values', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({
+      id: 1,
+      parts: [{ filename: null, contentType: 'text/plain', sizeBytes: null, disposition: null }]
+    }))
+
+    await expect(getMessage(1)).resolves.toMatchObject({
+      parts: [{ filename: null, contentType: 'text/plain', sizeBytes: null, disposition: null }]
+    })
+  })
+
+  it('reports no parts when the response omits them', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ id: 1 }))
+
+    await expect(getMessage(1)).resolves.toMatchObject({ parts: [] })
+  })
 })
 
 describe('deleteMessages', () => {

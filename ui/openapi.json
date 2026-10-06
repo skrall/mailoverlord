@@ -107,7 +107,7 @@
           "Messages"
         ],
         "summary": "Get one message",
-        "description": "Returns a single message in full, including its text body.",
+        "description": "Returns a single message in full, including its text body and the metadata of every part of its MIME structure. Attachments are described, not served: a part reports its filename, content type, decoded size and disposition, and size is absent when the message did not declare one.",
         "operationId": "getMessage",
         "parameters": [
           {
@@ -383,6 +383,33 @@
           },
           "body": {
             "type": "string"
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MessagePart"
+            }
+          }
+        }
+      },
+      "MessagePart": {
+        "type": "object",
+        "properties": {
+          "filename": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "disposition": {
+            "type": "string"
+          },
+          "displayedBody": {
+            "type": "boolean"
           }
         }
       },
