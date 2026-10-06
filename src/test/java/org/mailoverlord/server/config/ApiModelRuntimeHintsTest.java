@@ -32,6 +32,7 @@ class ApiModelRuntimeHintsTest {
                 .contains(
                         "org.mailoverlord.server.model.MessageSummary",
                         "org.mailoverlord.server.model.MessageDetail",
+                        "org.mailoverlord.server.model.MessagePart",
                         "org.mailoverlord.server.model.PageResponse",
                         "org.mailoverlord.server.model.MessageResponse");
     }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { MessageDetail } from '../api/client'
-import { formatTimestamp } from '../format'
+import type { MessageDetail, MessagePart } from '../api/client'
+import { formatBytes, formatTimestamp } from '../format'
 
 const props = defineProps<{
   message: MessageDetail | null
@@ -16,6 +16,23 @@ const recipients = computed(() => {
   }
   return props.message.to.split(',').map((address) => address.trim()).filter(Boolean)
 })
+
+/**
+ * The type is the part's name when it has no filename, so it is only worth repeating
+ * alongside one. An absent size is reported as unknown rather than as zero bytes, because a
+ * sender that left the length out has not claimed the part is empty.
+ */
+function describePart(part: MessagePart): string {
+  const details: string[] = []
+  if (part.filename) {
+    details.push(part.contentType)
+  }
+  details.push(part.sizeBytes === null ? 'size unknown' : formatBytes(part.sizeBytes))
+  if (part.disposition) {
+    details.push(part.disposition)
+  }
+  return details.join(' · ')
+}
 </script>
 
 <template>
@@ -39,6 +56,17 @@ const recipients = computed(() => {
         <dt>Received</dt>
         <dd>{{ formatTimestamp(message.receivedTimestamp) }}</dd>
       </dl>
+
+      <section v-if="message.parts.length > 0" class="parts">
+        <h3>Parts ({{ message.parts.length }})</h3>
+        <ul>
+          <li v-for="(part, index) in message.parts" :key="index">
+            <span class="name">{{ part.filename || part.contentType }}</span>
+            <span class="meta">{{ describePart(part) }}</span>
+            <span v-if="part.displayedBody" class="tag">body</span>
+          </li>
+        </ul>
+      </section>
 
       <pre class="body">{{ message.body }}</pre>
     </template>
@@ -97,6 +125,53 @@ dd {
 
 .recipient {
   display: block;
+}
+
+.parts {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+h3 {
+  margin: 0 0 8px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.parts ul {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.parts li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  font-size: 13px;
+}
+
+.name {
+  word-break: break-word;
+}
+
+.meta {
+  color: var(--text-muted);
+  font: 12px/1.5 var(--mono);
+  word-break: break-word;
+}
+
+.tag {
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  color: var(--text-muted);
+  font-size: 11px;
 }
 
 .body {

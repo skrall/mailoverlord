@@ -1,6 +1,7 @@
 package org.mailoverlord.server.config;
 
 import org.mailoverlord.server.model.MessageDetail;
+import org.mailoverlord.server.model.MessagePart;
 import org.mailoverlord.server.model.MessageResponse;
 import org.mailoverlord.server.model.MessageSummary;
 import org.mailoverlord.server.model.PageResponse;
@@ -24,6 +25,7 @@ public class ApiModelRuntimeHints implements RuntimeHintsRegistrar {
     private static final Class<?>[] API_TYPES = {
             MessageSummary.class,
             MessageDetail.class,
+            MessagePart.class,
             PageResponse.class,
             MessageResponse.class
     };

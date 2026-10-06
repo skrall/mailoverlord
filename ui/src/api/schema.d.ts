@@ -53,7 +53,7 @@ export interface paths {
         };
         /**
          * Get one message
-         * @description Returns a single message in full, including its text body.
+         * @description Returns a single message in full, including its text body and the metadata of every part of its MIME structure. Attachments are described, not served: a part reports its filename, content type, decoded size and disposition, and size is absent when the message did not declare one.
          */
         get: operations["getMessage"];
         put?: never;
@@ -137,6 +137,15 @@ export interface components {
             releasedTimestamp?: string;
             subject?: string;
             body?: string;
+            parts?: components["schemas"]["MessagePart"][];
+        };
+        MessagePart: {
+            filename?: string;
+            contentType?: string;
+            /** Format: int64 */
+            sizeBytes?: number;
+            disposition?: string;
+            displayedBody?: boolean;
         };
         Pageable: {
             /** Format: int32 */
