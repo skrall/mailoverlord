@@ -20,8 +20,17 @@ public interface MessageService {
      * <p>A failure partway through does not abandon the rest of the batch, and does not throw.
      * Delivery is not reversible, so a caller told only that "the release failed" would have no
      * way to know which messages already reached an inbox.
+     *
+     * <p>When {@code mailoverlord.release.allowed-destinations} is configured, a recipient the
+     * list refuses is not released: an override address asked for up front is rejected before
+     * anything is attempted, and a recipient the stored message already carries fails that one
+     * id. Either way the rejected address is named in the outcome.
+     *
+     * <p>Every call is recorded in the release audit trail.
+     *
+     * @param source who asked for the release, recorded in the audit trail
      */
-    MessageReleaseResponse releaseMessage(MessageReleaseRequest request);
+    MessageReleaseResponse releaseMessage(MessageReleaseRequest request, String source);
 
     void deleteMessage(MessageDeleteRequest request);
 

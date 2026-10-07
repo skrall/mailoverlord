@@ -17,7 +17,9 @@ import jakarta.mail.Part;
 import jakarta.mail.internet.ContentType;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
+import org.mailoverlord.server.config.ReleaseProperties;
 import org.mailoverlord.server.entities.Message;
+import org.mailoverlord.server.entities.ReleaseAudit;
 import org.mailoverlord.server.model.MessageDeleteRequest;
 import org.mailoverlord.server.model.MessageDetail;
 import org.mailoverlord.server.model.MessageFilter;
@@ -27,7 +29,9 @@ import org.mailoverlord.server.model.MessageReleaseRequest;
 import org.mailoverlord.server.model.MessageReleaseResponse;
 import org.mailoverlord.server.model.MessageSummary;
 import org.mailoverlord.server.model.PageResponse;
+import org.mailoverlord.server.model.ReleaseOutcome;
 import org.mailoverlord.server.repositories.MessageRepository;
+import org.mailoverlord.server.repositories.ReleaseAuditRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Pageable;
@@ -46,14 +50,25 @@ public class MessageServiceImpl implements MessageService {
 
     private final JavaMailSender mailSender;
     private final MessageRepository messageRepository;
+    private final ReleaseProperties releaseProperties;
+    private final ReleaseAuditRepository releaseAuditRepository;
 
-    public MessageServiceImpl(JavaMailSender mailSender, MessageRepository messageRepository) {
+    public MessageServiceImpl(JavaMailSender mailSender, MessageRepository messageRepository,
+            ReleaseProperties releaseProperties, ReleaseAuditRepository releaseAuditRepository) {
         this.mailSender = mailSender;
         this.messageRepository = messageRepository;
+        this.releaseProperties = releaseProperties;
+        this.releaseAuditRepository = releaseAuditRepository;
+        if (releaseProperties.unrestricted()) {
+            logger.warn("Release is unrestricted: \"mailoverlord.release.allowed-destinations\" "
+                    + "is empty or unset, so any recipient may be released to.");
+        }
     }
 
     @Override
-    public MessageReleaseResponse releaseMessage(MessageReleaseRequest request) {
+    public MessageReleaseResponse releaseMessage(MessageReleaseRequest request, String source) {
+        rejectUnallowedOverrideDestinations(request);
+
         // One lookup for the batch, then reported in the order asked for. Ids that were not
         // returned are accounted for as failures rather than dropped, so a stale id in the
         // request is visible instead of silently doing nothing.
@@ -61,6 +76,7 @@ public class MessageServiceImpl implements MessageService {
                 .collect(Collectors.toMap(Message::getId, Function.identity()));
 
         List<MessageReleaseOutcome> outcomes = new ArrayList<>();
+        List<String> destinations = new ArrayList<>();
         for (Long id : request.getMessageIds()) {
             Message databaseMessage = stored.get(id);
             if (databaseMessage == null) {
@@ -68,8 +84,11 @@ public class MessageServiceImpl implements MessageService {
                 continue;
             }
             try {
-                deliver(databaseMessage, request);
+                deliver(databaseMessage, request, destinations);
                 outcomes.add(new MessageReleaseOutcome(id, true, null));
+            } catch (RecipientNotAllowedException e) {
+                logger.warn("Release of message {} refused: {}", id, e.getMessage());
+                outcomes.add(new MessageReleaseOutcome(id, false, e.getMessage()));
             } catch (Exception e) {
                 // Delivery has already happened for any earlier id, so the batch carries on
                 // rather than throwing. Reporting only the first failure would leave the
@@ -78,7 +97,63 @@ public class MessageServiceImpl implements MessageService {
                 outcomes.add(new MessageReleaseOutcome(id, false, describe(e)));
             }
         }
+        recordAudit(request, source, destinations, outcomes);
         return MessageReleaseResponse.of(outcomes);
+    }
+
+    /**
+     * Refuses a release whose override recipients are not on the allowlist.
+     *
+     * <p>An override address is known up front, before anything has been attempted, so refusing
+     * it is a 4xx about the request rather than a failed delivery. Every address in the
+     * comma-separated list is checked, not just the first.
+     */
+    private void rejectUnallowedOverrideDestinations(MessageReleaseRequest request) {
+        if (request.isOverrideTo() && request.getOverrideToAddresses() != null) {
+            for (String address : request.getOverrideToAddresses().split(",")) {
+                String bare = bare(address.trim());
+                if (!releaseProperties.allows(bare)) {
+                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            ReleaseProperties.refusalMessage(bare));
+                }
+            }
+        }
+    }
+
+    /**
+     * One entry in the audit trail, one per release call.
+     *
+     * <p>Written even when nothing was released: a fully refused batch is exactly the case worth
+     * having a record of, since it may be someone probing the allowlist. The write is guarded
+     * because a release already went out by the time this runs; failing the response because the
+     * record-keeping failed would misreport the release itself, and the event is logged instead.
+     */
+    private void recordAudit(MessageReleaseRequest request, String source, List<String> destinations,
+            List<MessageReleaseOutcome> outcomes) {
+        ReleaseAudit audit = new ReleaseAudit();
+        audit.setReleasedAt(Instant.now());
+        audit.setSource(source);
+        audit.setMessageIds(request.getMessageIds().stream()
+                .map(String::valueOf)
+                .collect(Collectors.joining(",", "[", "]")));
+        if (request.isOverrideTo()) {
+            audit.setOverrideTo(request.getOverrideToAddresses());
+        }
+        audit.setDestinations(String.join(", ", destinations));
+        audit.setOutcome(outcomeOf(outcomes));
+        try {
+            releaseAuditRepository.save(audit);
+        } catch (RuntimeException e) {
+            logger.error("Could not write the release audit row.", e);
+        }
+    }
+
+    private static ReleaseOutcome outcomeOf(List<MessageReleaseOutcome> outcomes) {
+        long released = outcomes.stream().filter(MessageReleaseOutcome::released).count();
+        if (released == outcomes.size()) {
+            return ReleaseOutcome.RELEASED;
+        }
+        return released == 0 ? ReleaseOutcome.FAILED : ReleaseOutcome.PARTIAL;
     }
 
     /**
@@ -86,9 +161,14 @@ public class MessageServiceImpl implements MessageService {
      *
      * <p>Deliberately fails on its own rather than partway through: the override has to be applied
      * to the MIME message before it is sent, so there is no useful halfway state to recover to.
+     *
+     * <p>Every recipient the message would go to, after any override, is checked against the
+     * allowlist. A stored recipient that is refused fails this one message rather than the batch;
+     * an override address was already rejected up front, so by the time it reaches here it is
+     * allowed.
      */
-    private void deliver(Message databaseMessage, MessageReleaseRequest request)
-            throws MessagingException {
+    private void deliver(Message databaseMessage, MessageReleaseRequest request,
+            List<String> destinations) throws MessagingException {
         MimeMessage message = mailSender.createMimeMessage(
                 new ByteArrayInputStream(databaseMessage.getData()));
 
@@ -106,9 +186,38 @@ public class MessageServiceImpl implements MessageService {
             }
         }
 
+        Address[] recipients = message.getAllRecipients();
+        if (recipients != null) {
+            for (Address address : recipients) {
+                String bare = bare(address);
+                destinations.add(bare);
+                if (!releaseProperties.allows(bare)) {
+                    throw new RecipientNotAllowedException(ReleaseProperties.refusalMessage(bare));
+                }
+            }
+        }
+
         mailSender.send(message);
         databaseMessage.setReleasedTimestamp(Instant.now());
         messageRepository.save(databaseMessage);
+    }
+
+    /**
+     * Strips any display name so the allowlist matches the bare address, the same string that
+     * goes on the wire.
+     */
+    private static String bare(Address address) {
+        return address instanceof InternetAddress internetAddress
+                ? internetAddress.getAddress().trim()
+                : address.toString().trim();
+    }
+
+    private static String bare(String address) {
+        try {
+            return new InternetAddress(address).getAddress().trim();
+        } catch (MessagingException e) {
+            return address;
+        }
     }
 
     /**

@@ -58,7 +58,10 @@ java -jar target/mailoverlord-2.0.0-SNAPSHOT.jar \
 | `mailoverlord.smtp.max-message-size` | `10485760` | Maximum message size in bytes (10 MB) before Mailoverlord refuses it |
 | `spring.mail.host` | `localhost` | Host released messages are sent to |
 | `spring.mail.port` | `25` | Port released messages are sent to |
+| `server.address` | `127.0.0.1` | IP address the web server binds to |
 | `server.port` | `8080` | Web UI and API port |
+| `mailoverlord.smtp.bind-address` | `127.0.0.1` | IP address the embedded SMTP server binds to |
+| `mailoverlord.release.allowed-destinations` | empty (unrestricted) | Comma-separated list of glob patterns; if unset, all destinations are allowed |
 | `spring.datasource.url` | `jdbc:h2:mem:mailoverlord;DB_CLOSE_DELAY=-1` | Message store |
 
 To send released mail back to Mailoverlord itself, set `--spring.mail.port=2025`; the
@@ -81,15 +84,21 @@ Build an OCI image with [Cloud Native Buildpacks](https://buildpacks.io):
 
 ```bash
 ./mvnw spring-boot:build-image
-docker run --rm -p 8080:8080 -p 2025:2025 mailoverlord:2.0.0-SNAPSHOT
+docker run --rm -p 127.0.0.1:8080:8080 -p 127.0.0.1:2025:2025 mailoverlord:2.0.0-SNAPSHOT
 ```
+
+The application defaults to loopback binds on the host, and the image overrides them to
+`0.0.0.0` via `SERVER_ADDRESS` and `MAILOVERLORD_SMTP_BIND_ADDRESS`: a container that only
+listens on its own loopback cannot be reached through a published port. Loopback-only access
+on the host then comes from the `-p 127.0.0.1:...:...` publishes, which keep the host side
+private; publish without the `127.0.0.1:` prefix to expose the ports to other hosts.
 
 The image has no shell, so `docker exec -it <container> sh` will not work. To inspect the
 JVM directly, override the entrypoint with the buildpack's JRE. The application is an
 exploded layered jar rather than a single file, so it is launched by class name:
 
 ```bash
-docker run --rm -p 8080:8080 -p 2025:2025 \
+docker run --rm -p 127.0.0.1:8080:8080 -p 127.0.0.1:2025:2025 \
   --entrypoint /layers/paketo-buildpacks_bellsoft-liberica/jre/bin/java \
   mailoverlord:2.0.0-SNAPSHOT \
   -cp '/workspace/BOOT-INF/classes:/workspace/BOOT-INF/lib/*:/workspace' \
@@ -117,7 +126,7 @@ and the volume is writable:
 
 ```bash
 docker volume create mailoverlord-data
-docker run --rm --user 0 -p 8080:8080 -p 2025:2025 \
+docker run --rm --user 0 -p 127.0.0.1:8080:8080 -p 127.0.0.1:2025:2025 \
   -v mailoverlord-data:/data \
   -e SPRING_DATASOURCE_URL='jdbc:h2:file:/data/mailoverlord;DB_CLOSE_ON_EXIT=FALSE' \
   mailoverlord:2.0.0-SNAPSHOT
@@ -265,7 +274,10 @@ can fix the target and try again.
 ```
 
 Tests bind the SMTP port for real, so they cannot run two at a time or while the packaged
-application is already running.
+application is already running. By default both the web API and SMTP server bind only to
+`127.0.0.1` (loopback) for safety; use the properties in the table to expose them to other
+interfaces if needed. The recipient allowlist for `POST /messages/release` is disabled by
+default (unrestricted) but warns at startup when unset.
 
 The UI has its own Vitest suite, which `./mvnw verify` runs as part of the build. To run it
 on its own:

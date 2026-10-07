@@ -1,5 +1,8 @@
 package org.mailoverlord.server.config;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+
 import org.mailoverlord.server.message.DatabaseMessageHandlerFactory;
 import org.mailoverlord.server.repositories.MessageRepository;
 import org.subethamail.smtp.server.SMTPServer;
@@ -26,9 +29,19 @@ public class SmtpConfig {
         // it when it supplies its own MessageHandlerFactory, and we supply ours, so the knob
         // would be dead config implying a limit that nothing enforces. The real bound is in
         // DatabaseMessageHandlerFactory, driven by the same property.
-        return SMTPServer.port(properties.port())
+        SMTPServer.Builder builder = SMTPServer.port(properties.port())
                 .messageHandlerFactory(messageHandlerFactory)
-                .insertReceivedHeaders(!properties.disableReceivedHeaders())
-                .build();
+                .insertReceivedHeaders(!properties.disableReceivedHeaders());
+
+        String bindAddress = properties.bindAddress();
+        if (bindAddress != null && !bindAddress.isBlank()) {
+            try {
+                builder.bindAddress(InetAddress.getByName(bindAddress));
+            } catch (UnknownHostException e) {
+                throw new IllegalArgumentException(
+                        "mailoverlord.smtp.bind-address is not a valid address: " + bindAddress, e);
+            }
+        }
+        return builder.build();
     }
 }

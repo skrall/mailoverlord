@@ -134,6 +134,21 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <image>
+                        <!--
+                            The app defaults to loopback binds, which is right on the host but
+                            wrong in a container: the docker-published port must not be limited
+                            to the container's loopback or the host can never reach it. The
+                            host-side loopback protection is carried by the -p 127.0.0.1:...:
+                            publishes in the README, not by the app's own binds. See #55.
+                        -->
+                        <env>
+                            <SERVER_ADDRESS>0.0.0.0</SERVER_ADDRESS>
+                            <MAILOVERLORD_SMTP_BIND_ADDRESS>0.0.0.0</MAILOVERLORD_SMTP_BIND_ADDRESS>
+                        </env>
+                    </image>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.graalvm.buildtools</groupId>
