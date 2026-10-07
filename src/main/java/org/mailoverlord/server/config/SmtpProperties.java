@@ -12,6 +12,8 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
  *                               refused rather than stored
  */
 @ConfigurationProperties("mailoverlord.smtp")
-public record SmtpProperties(@DefaultValue("2025") int port, @DefaultValue("true") boolean disableReceivedHeaders,
-        @DefaultValue("10485760") int maxMessageSize) {
+public record SmtpProperties(@DefaultValue("2025") int port,
+        @DefaultValue("true") boolean disableReceivedHeaders,
+        @DefaultValue("10485760") int maxMessageSize,
+        @DefaultValue("127.0.0.1") String bindAddress) {
 }

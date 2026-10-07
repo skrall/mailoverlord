@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import java.time.Instant;
 import java.util.List;
@@ -195,19 +196,23 @@ public class MessageRestController {
                     schema = @Schema(implementation = MessageReleaseResponse.class)))
     @ApiResponse(responseCode = "400", description = "The body cannot be acted on: messageIds "
             + "was absent, misspelled, null or empty, or named more than 2000 messages; or an "
-            + "override was asked for without naming addresses that parse, which is what the "
-            + "substituted recipients or sender would be taken from. Rejected rather than reported "
-            + "as a failed release, since nothing was attempted and nothing needs releasing again. "
-            + "The limit is the most ids one page of the table can hold, which is the most a "
-            + "selection can contain.",
+            + "override was asked for without naming addresses that parse; or an override names a "
+            + "recipient the release allowlist refuses, which is rejected up front, naming the "
+            + "address, before anything is attempted. Rejected rather than reported as a failed "
+            + "release, since nothing was attempted and nothing needs releasing again. The limit is "
+            + "the most ids one page of the table can hold, which is the most a selection can "
+            + "contain.",
             content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
                     schema = @Schema(implementation = ProblemDetail.class)))
     @PostMapping(value = "/messages/release", produces = MediaType.APPLICATION_JSON_VALUE)
     public MessageReleaseResponse releaseMessages(
+            HttpServletRequest servletRequest,
             @Valid @RequestBody MessageReleaseRequest messageReleaseRequest) {
         logger.debug("Got MessageReleaseRequest, size: {}", messageReleaseRequest.getMessageIds().size());
         try {
-            return messageService.releaseMessage(messageReleaseRequest);
+            return messageService.releaseMessage(messageReleaseRequest, servletRequest.getRemoteAddr());
+        } catch (ResponseStatusException e) {
+            throw e;
         } catch (Throwable t) {
             // The service reports a per-id outcome for anything that goes wrong while delivering.
             // Reaching here means the batch failed before it ran, so every id is reported as

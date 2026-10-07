@@ -211,7 +211,7 @@ export interface operations {
                     "application/json": components["schemas"]["MessageReleaseResponse"];
                 };
             };
-            /** @description The body cannot be acted on: messageIds was absent, misspelled, null or empty, or named more than 2000 messages; or an override was asked for without naming addresses that parse, which is what the substituted recipients or sender would be taken from. Rejected rather than reported as a failed release, since nothing was attempted and nothing needs releasing again. The limit is the most ids one page of the table can hold, which is the most a selection can contain. */
+            /** @description The body cannot be acted on: messageIds was absent, misspelled, null or empty, or named more than 2000 messages; or an override was asked for without naming addresses that parse; or an override names a recipient the release allowlist refuses, which is rejected up front, naming the address, before anything is attempted. Rejected rather than reported as a failed release, since nothing was attempted and nothing needs releasing again. The limit is the most ids one page of the table can hold, which is the most a selection can contain. */
             400: {
                 headers: {
                     [name: string]: unknown;

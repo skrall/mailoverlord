@@ -30,10 +30,16 @@ spring:
     host: localhost
     port: 25
 
-# The SMTP server mailoverlord listens on to collect incoming mail.
+# Loopback only: the SMTP server is bound to 127.0.0.1 so that mailoverlord does not accept
+# arbitrary incoming mail on an open port. On a host that needs to receive from elsewhere,
+# override SERVER_ADDRESS and MAILOVERLORD_SMTP_BIND_ADDRESS as environment variables.
+server:
+  address: 127.0.0.1
+
 mailoverlord:
   smtp:
     port: 2025
+    bind-address: 127.0.0.1
 
 logging:
   level:

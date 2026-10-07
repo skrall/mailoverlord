@@ -22,10 +22,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mailoverlord.server.AbstractMailoverlordIntegrationTest;
 import org.mailoverlord.server.entities.Message;
+import org.mailoverlord.server.entities.ReleaseAudit;
 import org.mailoverlord.server.model.MessageDeleteRequest;
 import org.mailoverlord.server.model.MessageDetail;
 import org.mailoverlord.server.model.MessagePart;
 import org.mailoverlord.server.model.MessageReleaseRequest;
+import org.mailoverlord.server.model.ReleaseOutcome;
+import org.mailoverlord.server.repositories.ReleaseAuditRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 
 /**
@@ -48,6 +51,9 @@ class MessageServiceTest extends AbstractMailoverlordIntegrationTest {
 
     @Autowired
     org.mailoverlord.server.repositories.MessageRepository messageRepository;
+
+    @Autowired
+    ReleaseAuditRepository releaseAuditRepository;
 
     /** A {@link DataSource} over bytes already in memory, for building an attachment in a test. */
     private record ByteArrayDataSource(byte[] bytes, String contentType) implements DataSource {
@@ -106,7 +112,7 @@ class MessageServiceTest extends AbstractMailoverlordIntegrationTest {
 
         MessageReleaseRequest request = new MessageReleaseRequest();
         request.addMessageId(captured.getFirst().getId());
-        messageService.releaseMessage(request);
+        messageService.releaseMessage(request, "127.0.0.1");
 
         assertThat(testMessageRepository.findByFrom(FROM)).as("re-captured messages").hasSize(2);
     }
@@ -124,7 +130,7 @@ class MessageServiceTest extends AbstractMailoverlordIntegrationTest {
 
         MessageReleaseRequest request = new MessageReleaseRequest();
         request.addMessageId(original.getId());
-        messageService.releaseMessage(request);
+        messageService.releaseMessage(request, "127.0.0.1");
 
         Message redelivered = reCapturedCopyOf(original);
         // BCC is absent by design rather than by oversight: it arrived as an envelope recipient,
@@ -146,7 +152,7 @@ class MessageServiceTest extends AbstractMailoverlordIntegrationTest {
         request.setOverrideFromAddress("override@override.com");
         request.setOverrideTo(true);
         request.setOverrideToAddresses("override@override.com");
-        messageService.releaseMessage(request);
+        messageService.releaseMessage(request, "127.0.0.1");
 
         assertThat(testMessageRepository.findByFrom(FROM)).as("original messages left alone").hasSize(1);
         assertThat(testMessageRepository.findByFrom("override@override.com")).as("overridden messages").hasSize(1);
@@ -167,11 +173,37 @@ class MessageServiceTest extends AbstractMailoverlordIntegrationTest {
         request.addMessageId(original.getId());
         request.setOverrideTo(true);
         request.setOverrideToAddresses("only@override.com");
-        messageService.releaseMessage(request);
+        messageService.releaseMessage(request, "127.0.0.1");
 
         Message redelivered = reCapturedCopyOf(original);
         assertThat(recipientsOf(redelivered)).as("recipients of the re-sent message")
                 .containsExactly("only@override.com");
+    }
+
+    /**
+     * The audit trail exists to answer "what went to these people and when" about a release.
+     * The row is written from the same resolved-recipient list an override would have been
+     * refused against, so the recorded destinations are what the allowlist saw.
+     */
+    @Test
+    void aReleaseLeavesAnAuditRowOfWhereItWent() {
+        Message original = testMessageRepository.findByFrom(FROM).getFirst();
+
+        MessageReleaseRequest request = new MessageReleaseRequest();
+        request.addMessageId(original.getId());
+        messageService.releaseMessage(request, "127.0.0.1");
+
+        ReleaseAudit row = releaseAuditRepository.findAll().stream()
+                .filter(entry -> entry.getMessageIds().equals("[" + original.getId() + "]"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("no audit row for the released message"));
+        assertThat(row.getOutcome()).isEqualTo(ReleaseOutcome.RELEASED);
+        assertThat(row.getReleasedAt()).isNotNull();
+        assertThat(row.getSource()).isEqualTo("127.0.0.1");
+        assertThat(row.getOverrideTo()).isNull();
+        assertThat(row.getDestinations())
+                .as("the recipients resolved for the release, which the allowlist was asked about")
+                .contains("to@email.com", "cc@email.com");
     }
 
     /**
