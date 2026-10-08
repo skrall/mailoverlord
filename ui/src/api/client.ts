@@ -115,20 +115,22 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = init?.method ?? 'GET'
   const response = await fetch(path, {
-    headers: { Accept: 'application/json', ...init?.headers },
     ...init,
+    headers: { Accept: 'application/json', ...csrfHeaders(method), ...init?.headers },
   })
 
   if (!response.ok) {
     if (response.status === 401) {
-      // Basic does not pop its dialog for `fetch`, so nothing the bearer of the 401 can do in
-      // place will help. A top-level navigation to /login is what makes the browser ask and
-      // then replay the SPA's calls with the credentials attached.
-      window.location.assign('/login')
+      // The API works on its own session cookie under OIDC, so a 401 means the session is
+      // gone and nothing a fetch can do in place will restore it. The server says where the
+      // browser should go: /login for Basic (whose prompt only shows on a top-level
+      // navigation) or /oauth2/authorization/{registrationId} to start an OIDC login.
+      window.location.assign(await loginUrl(response))
       throw new ApiError('Sign in required.', response.status)
     }
-    const failure = `${init?.method ?? 'GET'} ${path} failed with ${response.status}`
+    const failure = `${method} ${path} failed with ${response.status}`
     const reason = await explanation(response)
     // A view-only user reaching release or delete is a permission problem, not a request
     // problem; name it as one so the banner reads as "ask for more access", not "fix a query".
@@ -140,6 +142,49 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
 
   return (await response.json()) as T
+}
+
+/**
+ * Where a 401 should send the browser. The problem detail says: /login for Basic, the token
+ * endpoint for an OIDC login; a bodyless 401 — which is what a proxy tends to produce — falls
+ * back to /login, which under Basic is correct and under OIDC is the page that lists the
+ * providers.
+ */
+async function loginUrl(response: Response): Promise<string> {
+  const body = await response.text()
+  if (body.trim() === '') {
+    return '/login'
+  }
+  try {
+    const problem = JSON.parse(body) as { 'login-url'?: unknown }
+    // The body is read here and never again, so the error still works if parsing fails.
+    return typeof problem['login-url'] === 'string' && problem['login-url'] !== ''
+      ? problem['login-url']
+      : '/login'
+  } catch {
+    return '/login'
+  }
+}
+
+/**
+ * The OIDC session is a cookie, so the browser's identity rides along on every request and the
+ * SPA holds no token of its own. That same quiet cookie is what makes state-changing requests
+ * cross-site in origin terms, which is why Spring Security asks for a CSRF token on them. The
+ * token arrives as a readable cookie (the server deliberately leaves it readable) and goes back
+ * in X-XSRF-TOKEN, which is the header CookieCsrfTokenRepository expects. Basic mode has no such
+ * cookie and simply stays header-free.
+ */
+function csrfHeaders(method: string): Record<string, string> {
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
+    return {}
+  }
+  const token = csrfToken()
+  return token === null ? {} : { 'X-XSRF-TOKEN': token }
+}
+
+function csrfToken(): string | null {
+  const match = document.cookie.match(/(?:^|;\s*)XSRF-TOKEN=([^;]*)/)
+  return match === null ? null : decodeURIComponent(match[1])
 }
 
 /** Longer than this in a one-line banner is noise rather than an explanation. */

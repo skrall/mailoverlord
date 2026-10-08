@@ -134,6 +134,7 @@ public class SecurityConfigTest {
                 .andExpect(jsonPath("$.status").value(401))
                 .andExpect(jsonPath("$.detail")
                         .value("Authentication is required. Sign in with the configured user credentials."))
+                .andExpect(jsonPath("$.login-url").value("/login"))
                 .andExpect(header().exists("WWW-Authenticate"));
     }
 

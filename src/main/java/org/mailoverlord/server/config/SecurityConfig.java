@@ -1,12 +1,16 @@
 package org.mailoverlord.server.config;
 
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.springframework.boot.security.autoconfigure.SecurityProperties;
+import org.springframework.boot.security.oauth2.client.autoconfigure.OAuth2ClientProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Condition;
@@ -28,10 +32,16 @@ import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.authentication.DelegatingAuthenticationEntryPoint;
+import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 import tools.jackson.databind.json.JsonMapper;
@@ -45,10 +55,20 @@ import tools.jackson.databind.json.JsonMapper;
  * session: Basic carries the credential on every request, so there is no server-side session to
  * protect or invalidate.
  *
- * <p>The identity store is deliberately small: the {@code spring.security.user.*} identity and
+ * <p>{@code oidc} signs browsers in against an identity provider through the authorization code
+ * flow. The SPA only ever holds a session cookie, so there is no token in JavaScript to steal;
+ * the provider endpoints are read from the registration's {@code issuer-uri}, so Okta and Entra
+ * ID are configuration rather than code. The OIDC chain keeps a session and therefore CSRF
+ * protection: the UI echoes the {@code XSRF-TOKEN} cookie back as {@code X-XSRF-TOKEN}, and
+ * {@code POST /logout} (with the same token) ends the local session. An OIDC 401 answers the
+ * API as a problem detail whose {@code login-url} points at the configured provider, so the SPA
+ * can restart the login flow; a browser navigation is redirected to the provider directly.
+ *
+ * <p>The identities of {@code basic} mode are the {@code spring.security.user.*} identity and
  * every name in {@code mailoverlord.security.operator-users} and {@code viewer-users}, all
- * sharing the one {@code spring.security.user.password}. Roles split read from mutation:
- * OPERATOR may release and delete, VIEWER may only read.
+ * sharing the one {@code spring.security.user.password}. Under {@code oidc}, roles come from the
+ * configured or {@code operator-groups} in the {@code roles-claim}. Roles split read from
+ * mutation in both modes: OPERATOR may release and delete, VIEWER may only read.
  */
 @Configuration
 @EnableWebSecurity
@@ -59,29 +79,57 @@ import tools.jackson.databind.json.JsonMapper;
 public class SecurityConfig {
 
     /**
-     * Method security is only for {@code basic}: under {@code none} the {@code release} and
-     * {@code delete} endpoints stay exactly as they were, including for test-suite requests
-     * that carry no identity. A condition rather than a property-conditional annotation,
-     * because the default mode is {@code basic} even when the property is left out entirely.
+     * Method security is for the authenticated modes only: under {@code none} the {@code release}
+     * and {@code delete} endpoints stay exactly as they were, including for test-suite requests
+     * that carry no identity. A condition rather than a property-conditional annotation, because
+     * the default mode is {@code basic} even when the property is left out entirely.
      */
     @Configuration
     @EnableMethodSecurity
-    @Conditional(ModeIsBasic.class)
+    @Conditional(ModeIsNotNone.class)
     static class MethodSecurityConfiguration {
     }
 
     /**
-     * Whether {@code mailoverlord.security.mode} names (or defaults to) {@code basic}.
+     * Each condition reads the raw {@code mailoverlord.security.mode} property. Three booleans
+     * cover the modes; anything unrecognised is treated as {@code basic}, matching the default.
      */
-    static final class ModeIsBasic implements Condition {
+    private abstract static class ModeCondition implements Condition {
         @Override
         public boolean matches(ConditionContext context, AnnotatedTypeMetadata metadata) {
             String mode = context.getEnvironment().getProperty("mailoverlord.security.mode");
-            return mode == null || mode.isBlank() || "basic".equalsIgnoreCase(mode.trim());
+            return matchesMode(mode == null ? "" : mode.trim().toLowerCase());
+        }
+
+        protected abstract boolean matchesMode(String mode);
+    }
+
+    /** Mode names, or defaults to, {@code basic} (and not {@code oidc}). */
+    static final class ModeIsNotOidc extends ModeCondition {
+        @Override
+        protected boolean matchesMode(String mode) {
+            return !"oidc".equals(mode);
+        }
+    }
+
+    /** Mode is {@code oidc}. */
+    static final class ModeIsOidc extends ModeCondition {
+        @Override
+        protected boolean matchesMode(String mode) {
+            return "oidc".equals(mode);
+        }
+    }
+
+    /** Mode is anything but {@code none}. */
+    static final class ModeIsNotNone extends ModeCondition {
+        @Override
+        protected boolean matchesMode(String mode) {
+            return !"none".equals(mode);
         }
     }
 
     @Bean
+    @Conditional(ModeIsNotOidc.class)
     SecurityFilterChain securityFilterChain(HttpSecurity http,
             MailoverlordSecurityProperties properties, AuthenticationEntryPoint entryPoint,
             AccessDeniedHandler deniedHandler) throws Exception {
@@ -108,20 +156,79 @@ public class SecurityConfig {
     }
 
     /**
+     * The OIDC chain: the id-provider login, a session of the SPA's own, and (because the
+     * session is a cookie) CSRF protection against state-changing requests from elsewhere. The
+     * CSRF token travels in a readable cookie the UI echoes back, the same negotiation the
+     * Angular-and-Spring pairing has used for years.
+     */
+    @Bean
+    @Conditional(ModeIsOidc.class)
+    SecurityFilterChain oidcSecurityFilterChain(HttpSecurity http, OidcUserService oidcUserService,
+            AuthenticationEntryPoint oidcEntryPoint, AccessDeniedHandler deniedHandler)
+            throws Exception {
+        http.csrf(csrf -> csrf.csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse()))
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
+                .oauth2Login(login -> login.userInfoEndpoint(
+                        userInfo -> userInfo.oidcUserService(oidcUserService)))
+                .logout(logout -> logout
+                        .invalidateHttpSession(true)
+                        .clearAuthentication(true)
+                        .deleteCookies("JSESSIONID", "XSRF-TOKEN"))
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(oidcEntryPoint)
+                        .accessDeniedHandler(deniedHandler))
+                .authorizeHttpRequests(authorize -> authorize
+                        .requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll()
+                        .anyRequest().authenticated());
+        return http.build();
+    }
+
+    /**
      * Answers a request that reached a guarded endpoint without credentials as RFC 9457.
      *
      * <p>{@code spring.mvc.problemdetails.enabled} does not reach here: this runs in the filter
      * chain, before any controller can produce a body. The {@code WWW-Authenticate} header the
      * default entry point adds is kept, because it is what makes a top-level navigation pop the
-     * browser's Basic prompt.
+     * browser's Basic prompt. The {@code login-url} property is what the SPA navigates to, so it
+     * does not have to know which mode produced the 401.
      */
     @Bean
     AuthenticationEntryPoint problemDetailEntryPoint(JsonMapper jsonMapper) {
         return (request, response, exception) -> {
             response.setHeader(HttpHeaders.WWW_AUTHENTICATE, "Basic realm=\"mailoverlord\"");
             writeProblem(jsonMapper, response, HttpStatus.UNAUTHORIZED,
-                    "Authentication is required. Sign in with the configured user credentials.");
+                    "Authentication is required. Sign in with the configured user credentials.",
+                    Map.of("login-url", "/login"));
         };
+    }
+
+    /**
+     * The OIDC answers to an unauthenticated request. An API call (the SPA's {@code fetch}) gets
+     * an RFC 9457 401 whose {@code login-url} restarts the provider login, because a redirect the
+     * {@code fetch} follows to the provider's origin is a CORS failure. A top-level navigation
+     * gets an ordinary redirect to the provider (or, with several registrations, to the login
+     * page that lists them).
+     */
+    @Bean
+    @Conditional(ModeIsOidc.class)
+    AuthenticationEntryPoint oidcEntryPoint(JsonMapper jsonMapper,
+            OAuth2ClientProperties clients) {
+        List<String> registrationIds = new ArrayList<>(clients.getRegistration().keySet());
+        String loginUrl = registrationIds.size() == 1
+                ? "/oauth2/authorization/" + registrationIds.get(0)
+                : "/login";
+        Map<String, Object> apiProperties = Map.of("login-url", loginUrl);
+        LinkedHashMap<RequestMatcher, AuthenticationEntryPoint> byPath = new LinkedHashMap<>();
+        byPath.put(PathPatternRequestMatcher.pathPattern("/messages/**"),
+                (AuthenticationEntryPoint) (request, response, exception) -> writeProblem(
+                        jsonMapper, response, HttpStatus.UNAUTHORIZED,
+                        "Authentication is required. Sign in through the configured identity "
+                                + "provider.",
+                        apiProperties));
+        DelegatingAuthenticationEntryPoint delegating = new DelegatingAuthenticationEntryPoint(byPath);
+        delegating.setDefaultEntryPoint(new LoginUrlAuthenticationEntryPoint(loginUrl));
+        return delegating;
     }
 
     /**
@@ -133,15 +240,29 @@ public class SecurityConfig {
     @Bean
     AccessDeniedHandler problemDetailDeniedHandler(JsonMapper jsonMapper) {
         return (request, response, exception) -> writeProblem(jsonMapper, response,
-                HttpStatus.FORBIDDEN, "You are not allowed to do that.");
+                HttpStatus.FORBIDDEN, "You are not allowed to do that.", Map.of());
     }
 
     private static void writeProblem(JsonMapper jsonMapper, HttpServletResponse response,
-            HttpStatus status, String detail) throws IOException {
+            HttpStatus status, String detail, Map<String, Object> properties) throws IOException {
         response.setStatus(status.value());
         response.setContentType(MediaType.APPLICATION_PROBLEM_JSON_VALUE);
-        jsonMapper.writeValue(response.getWriter(),
-                ProblemDetail.forStatusAndDetail(status, detail));
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(status, detail);
+        for (Map.Entry<String, Object> entry : properties.entrySet()) {
+            problem.setProperty(entry.getKey(), entry.getValue());
+        }
+        jsonMapper.writeValue(response.getWriter(), problem);
+    }
+
+    /**
+     * The OIDC user loader that stamps the group-derived roles on the identity. Only ever
+     * reached by the OIDC chain, so it carries the same mode condition.
+     */
+    @Bean
+    @Conditional(ModeIsOidc.class)
+    OidcUserService oidcUserService(MailoverlordSecurityProperties properties) {
+        return new OidcRolesUserService(
+                new OidcRolesMapper(properties.rolesClaim(), properties.operatorGroups()));
     }
 
     /**
@@ -195,10 +316,11 @@ public class SecurityConfig {
     }
 
     /**
-     * Where the UI sends the browser when the API answers 401: Basic does not pop its dialog for
+     * Where a 401 sends the browser under Basic: Basic does not pop its dialog for
      * {@code fetch}, so a top-level navigation to /login is what makes the browser ask instead.
      * The path serves the SPA; a reload after answering re-runs the API calls with the cached
-     * credentials attached.
+     * credentials attached. Under OIDC the generated provider-chooser page claims the same path
+     * at the filter level, which is what lists the configured providers.
      */
     @Bean
     WebMvcConfigurer loginView() {

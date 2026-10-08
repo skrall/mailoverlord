@@ -63,24 +63,78 @@ java -jar target/mailoverlord-2.0.0-SNAPSHOT.jar \
 | `mailoverlord.smtp.bind-address` | `127.0.0.1` | IP address the embedded SMTP server binds to |
 | `mailoverlord.release.allowed-destinations` | empty (unrestricted) | Comma-separated list of glob patterns; if unset, all destinations are allowed |
 | `spring.datasource.url` | `jdbc:h2:mem:mailoverlord;DB_CLOSE_DELAY=-1` | Message store |
-| `mailoverlord.security.mode` | `basic` | Authentication mechanism: `basic` requires HTTP Basic on every request, `none` turns authentication off (how the test suite runs) |
+| `mailoverlord.security.mode` | `basic` | Authentication mechanism: `basic` requires HTTP Basic on every request, `oidc` signs browsers in against an identity provider, `none` turns authentication off (how the test suite runs) |
 | `mailoverlord.security.operator-users` | empty | Usernames that may also release and delete; they share the password below |
 | `mailoverlord.security.viewer-users` | empty | Usernames that may only read |
+| `mailoverlord.security.roles-claim` | `groups` | OIDC claim that carries group membership (Okta `groups`, Entra ID `roles`) |
+| `mailoverlord.security.operator-groups` | empty | OIDC group names that may release and delete |
 | `spring.security.user.name` | `operator` | The documented sign-in identity, always an OPERATOR |
 | `spring.security.user.password` | `change-me-on-deploy` | The one shared password. Override it with `MAILOVERLORD_PASSWORD`; the generated `spring.security.user.password` also works |
 
 ### Authentication
 
-Every request needs HTTP Basic. Sign in once as the documented `spring.security.user.*`
-identity (an OPERATOR, so it can read, release, and delete) or as a name added to
-`operator-users` or `viewer-users`; everyone shares the one `spring.security.user.password`.
-Set `mailoverlord.security.mode=none` only to run with no authentication at all.
+`basic` mode requires HTTP Basic on every request. Sign in once as the documented
+`spring.security.user.*` identity (an OPERATOR, so it can read, release, and delete) or as a
+name added to `operator-users` or `viewer-users`; everyone shares the one
+`spring.security.user.password`. Set `mailoverlord.security.mode=none` only to run with no
+authentication at all.
 
-Because Basic does not pop its dialog for `fetch`, the UI sends the browser to `/login` when
-the API answers 401, which is what makes the browser ask for credentials; after that it
-reloads and the calls carry the credentials. A VIEWER reaching release or delete is told it
-is a permission problem. `curl --user operator:password ...` works the same way against the
-API. See #56.
+Because Basic does not pop its dialog for `fetch`, the UI sends the browser to `/login` when the
+API answers 401, which is what makes the browser ask for credentials; after that it reloads and
+the calls carry the credentials. A VIEWER reaching release or delete is told it is a permission
+problem. `curl --user operator:password ...` works the same way against the API. See #56.
+
+### Browser login against a provider (OIDC)
+
+The same jar can sign people in at the browser through Okta or Entra ID instead, with the
+authorization code flow and the vendor difference living in configuration. The SPA never sees a
+token: the provider hands the browser a session cookie, and that cookie is all the API needs.
+Set `mailoverlord.security.mode=oidc`, configure one client registration, and tell the provider
+the redirect URI `{base-url}/login/oauth2/code/{registrationId}`:
+
+```yaml
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          okta:                    # or "entra" for Microsoft Entra ID
+            client-id: ...
+            client-secret: ...
+            provider: okta
+        provider:
+          okta:
+            issuer-uri: https://yourdomain.okta.com/oauth2/default
+          # entra:
+          #   issuer-uri: https://login.microsoftonline.com/{tenant-id}/v2.0
+```
+
+`issuer-uri` is the whole vendor difference: Spring reads the provider's
+`/.well-known/openid-configuration` from it and derives every endpoint. For Entra ID, create the
+app registration under *App registrations*, add this redirect URI under *Authentication → Web*,
+and under *App roles* define the operator group you name below so it lands in the `roles` claim
+(Entra's `groups` claim needs admin consent and caps at 150 members; `roles` needs neither).
+
+Which groups may release and delete is decided per deployment. Set the claim the provider uses
+and the group names that carry the OPERATOR role; everyone else who can sign in reads only:
+
+```yaml
+mailoverlord:
+  security:
+    roles-claim: groups           # Okta default; use "roles" for Entra ID
+    operator-groups: [mailoverlord-operators]
+```
+
+The claim is read whether it arrives as an array (`groups: [mailoverlord-operators]`) or as a
+single string, and matched case-insensitively. An authenticated user is always a VIEWER, so
+reads never depend on what the provider chose to put in a claim.
+
+Logout is `POST /logout` with the CSRF token (the `XSRF-TOKEN` cookie echoed back as
+`X-XSRF-TOKEN`, which the UI does for you). This clears the local session but leaves the IdP
+session alive, so signing in again is instant; provider side, OIDC back-channel logout is a
+separate piece of work. The session cookie's `SameSite` default is fine because the UI and API
+share one origin; if they ever move apart, set `server.servlet.session.cookie.same-site` to
+match.
 
 To send released mail back to Mailoverlord itself, set `--spring.mail.port=2025`; the
 released messages are then re-captured and show up in the UI again.
