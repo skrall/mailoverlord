@@ -1,4 +1,12 @@
 spring:
+  # Security is exercised by dedicated slice tests; the shared context here runs the
+  # pre-security behaviour so the existing suite is untouched.
+  security:
+    user:
+      name: operator
+      # A fixed password, so a test can sign in as the documented user.
+      password: ${MAILOVERLORD_PASSWORD:${SPRING_SECURITY_USER_PASSWORD:test-password}}
+
   datasource:
     # H2 in memory by default so the suite runs anywhere with no setup. Point these at
     # a real database to run the suite against it, e.g.
@@ -20,3 +28,9 @@ spring:
   mail:
     host: localhost
     port: 2025
+
+mailoverlord:
+  security:
+    # The shared context runs every security mode off: the filter chain this selects
+    # reproduces the pre-security behaviour, so nothing in the existing suite changes.
+    mode: none

@@ -29,6 +29,7 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -171,6 +172,7 @@ public class MessageRestController {
             + "of the table can hold, which is the most a selection can contain.",
             content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
                     schema = @Schema(implementation = ProblemDetail.class)))
+    @PreAuthorize("hasRole('OPERATOR')")
     @PostMapping(value = "/messages/delete", produces = MediaType.APPLICATION_JSON_VALUE)
     public MessageResponse deleteMessages(
             @Valid @RequestBody MessageDeleteRequest messageDeleteRequest) {
@@ -204,6 +206,7 @@ public class MessageRestController {
             + "contain.",
             content = @Content(mediaType = MediaType.APPLICATION_PROBLEM_JSON_VALUE,
                     schema = @Schema(implementation = ProblemDetail.class)))
+    @PreAuthorize("hasRole('OPERATOR')")
     @PostMapping(value = "/messages/release", produces = MediaType.APPLICATION_JSON_VALUE)
     public MessageReleaseResponse releaseMessages(
             HttpServletRequest servletRequest,

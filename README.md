@@ -63,6 +63,24 @@ java -jar target/mailoverlord-2.0.0-SNAPSHOT.jar \
 | `mailoverlord.smtp.bind-address` | `127.0.0.1` | IP address the embedded SMTP server binds to |
 | `mailoverlord.release.allowed-destinations` | empty (unrestricted) | Comma-separated list of glob patterns; if unset, all destinations are allowed |
 | `spring.datasource.url` | `jdbc:h2:mem:mailoverlord;DB_CLOSE_DELAY=-1` | Message store |
+| `mailoverlord.security.mode` | `basic` | Authentication mechanism: `basic` requires HTTP Basic on every request, `none` turns authentication off (how the test suite runs) |
+| `mailoverlord.security.operator-users` | empty | Usernames that may also release and delete; they share the password below |
+| `mailoverlord.security.viewer-users` | empty | Usernames that may only read |
+| `spring.security.user.name` | `operator` | The documented sign-in identity, always an OPERATOR |
+| `spring.security.user.password` | `change-me-on-deploy` | The one shared password. Override it with `MAILOVERLORD_PASSWORD`; the generated `spring.security.user.password` also works |
+
+### Authentication
+
+Every request needs HTTP Basic. Sign in once as the documented `spring.security.user.*`
+identity (an OPERATOR, so it can read, release, and delete) or as a name added to
+`operator-users` or `viewer-users`; everyone shares the one `spring.security.user.password`.
+Set `mailoverlord.security.mode=none` only to run with no authentication at all.
+
+Because Basic does not pop its dialog for `fetch`, the UI sends the browser to `/login` when
+the API answers 401, which is what makes the browser ask for credentials; after that it
+reloads and the calls carry the credentials. A VIEWER reaching release or delete is told it
+is a permission problem. `curl --user operator:password ...` works the same way against the
+API. See #56.
 
 To send released mail back to Mailoverlord itself, set `--spring.mail.port=2025`; the
 released messages are then re-captured and show up in the UI again.
