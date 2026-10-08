@@ -127,8 +127,9 @@ class OpenApiResponseContractTest {
 
     private static List<Operation> operations() {
         List<Operation> found = new ArrayList<>();
-        DOCUMENT.get("paths").fields().forEachRemaining(pathEntry -> pathEntry.getValue().fields()
-                .forEachRemaining(operationEntry -> {
+        DOCUMENT.get("paths").properties().forEach(pathEntry -> pathEntry.getValue()
+                .properties()
+                .forEach(operationEntry -> {
                     if (!operationEntry.getKey().startsWith("x-")) {
                         found.add(new Operation(operationEntry.getKey(), pathEntry.getKey(),
                                 operationEntry.getValue().get("responses")));
@@ -145,7 +146,7 @@ class OpenApiResponseContractTest {
 
     private static void collectRefs(JsonNode node, List<String> into) {
         if (node.isObject()) {
-            node.fields().forEachRemaining(entry -> {
+            node.properties().forEach(entry -> {
                 if ("$ref".equals(entry.getKey())) {
                     into.add(entry.getValue().asText());
                 } else {
