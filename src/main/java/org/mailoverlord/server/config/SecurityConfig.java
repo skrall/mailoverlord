@@ -3,7 +3,6 @@ package org.mailoverlord.server.config;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -237,16 +236,16 @@ public class SecurityConfig {
                 ? "/oauth2/authorization/" + registrationIds.get(0)
                 : "/login";
         Map<String, Object> apiProperties = Map.of("login-url", loginUrl);
-        LinkedHashMap<RequestMatcher, AuthenticationEntryPoint> byPath = new LinkedHashMap<>();
-        byPath.put(PathPatternRequestMatcher.pathPattern("/messages/**"),
-                (AuthenticationEntryPoint) (request, response, exception) -> writeProblem(
-                        jsonMapper, response, HttpStatus.UNAUTHORIZED,
-                        "Authentication is required. Sign in through the configured identity "
-                                + "provider.",
-                        apiProperties));
-        DelegatingAuthenticationEntryPoint delegating = new DelegatingAuthenticationEntryPoint(byPath);
-        delegating.setDefaultEntryPoint(new LoginUrlAuthenticationEntryPoint(loginUrl));
-        return delegating;
+        return DelegatingAuthenticationEntryPoint.builder()
+                .addEntryPointFor(
+                        (request, response, exception) -> writeProblem(jsonMapper, response,
+                                HttpStatus.UNAUTHORIZED,
+                                "Authentication is required. Sign in through the configured "
+                                        + "identity provider.",
+                                apiProperties),
+                        PathPatternRequestMatcher.pathPattern("/messages/**"))
+                .defaultEntryPoint(new LoginUrlAuthenticationEntryPoint(loginUrl))
+                .build();
     }
 
     /**
