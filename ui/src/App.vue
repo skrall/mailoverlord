@@ -130,9 +130,40 @@ let pollTimer = 0
  */
 let latestLoad = 0
 
+/**
+ * How long a detail fetch waits for the key to settle, in ms.
+ *
+ * <p>Holding `j` auto-repeats keydown tens of times a second, and each repeat lands here as an
+ * `open` emit. Fetching on the first would load every message the cursor passes over on the way,
+ * which is the request storm #64 describes. This window waits for the repeats to stop and fetches
+ * only the row they settled on.
+ */
+const DETAIL_DEBOUNCE_MS = 200
+
+/** The pending detail fetch, reset on every move so only the row the cursor stops on loads. */
+let detailTimer = 0
+
+/**
+ * Identifies the most recent open, so a slower earlier answer cannot overwrite a newer one.
+ *
+ * <p>Two detail requests can be in flight together — a click or a key press that lands while the
+ * previous fetch is still on the wire. Whichever answers last used to win, so a skipped row could
+ * repaint the panel after the row the cursor had moved on to. Same reasoning as {@link latestLoad}
+ * above: the newest request owns the panel, everything else is dropped as it lands.
+ */
+let latestOpen = 0
+
+/**
+ * Clears the panel.
+ *
+ * <p>Also retires the pending fetch, so a message the user just dismissed cannot load itself back
+ * a moment later when the debounce clears.
+ */
 function closeDetail(): void {
   activeId.value = null
   detail.value = null
+  window.clearTimeout(detailTimer)
+  ++latestOpen
 }
 
 const selectedMessages = computed(() =>
@@ -199,17 +230,44 @@ function applyFilter(next: MessageFilterRequest): void {
   void load()
 }
 
-async function open(id: number): Promise<void> {
+/**
+ * Shows a message without fetching it yet.
+ *
+ * <p>Active and focus move straight away — the cursor must not lag behind the key — and only the
+ * fetch waits for the key to settle. Everything a fetch does is deferred and guarded by
+ * {@link loadDetail}.
+ */
+function open(id: number): void {
   activeId.value = id
+  const request = ++latestOpen
+  window.clearTimeout(detailTimer)
+  detailTimer = window.setTimeout(() => {
+    void loadDetail(id, request)
+  }, DETAIL_DEBOUNCE_MS)
+}
+
+/** Fetches one message's detail, ignoring the answer if a newer open has since superseded it. */
+async function loadDetail(id: number, request: number): Promise<void> {
   detailLoading.value = true
   try {
-    detail.value = await getMessage(id)
+    const message = await getMessage(id)
+    if (request !== latestOpen) {
+      return
+    }
+    detail.value = message
     clearError('open')
   } catch (cause) {
+    if (request !== latestOpen) {
+      return
+    }
     detail.value = null
     reportError('open', cause)
   } finally {
-    detailLoading.value = false
+    // Only the newest open owns the spinner, otherwise the first one to finish would clear it
+    // while the second is still in flight.
+    if (request === latestOpen) {
+      detailLoading.value = false
+    }
   }
 }
 
@@ -365,6 +423,7 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('keydown', onShortcut)
   window.clearInterval(pollTimer)
+  window.clearTimeout(detailTimer)
 })
 </script>
 
