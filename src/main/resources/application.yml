@@ -51,12 +51,33 @@ mailoverlord:
 
   # Every request needs HTTP Basic authentication. The documented user is the
   # spring.security.user identity; add names to the operator/viewer lists to hand that
-  # shared password to others with a narrower role. Set mode to "none" only to run with
-  # no authentication at all, which is what the test suite does.
+  # shared password to others with a narrower role. Set mode to "oidc" to sign browsers in
+  # against an identity provider instead (see the README); set it to "none" only to run
+  # with no authentication at all, which is what the test suite does.
   security:
     mode: basic
     operator-users: []
     viewer-users: []
+
+  # With mode: oidc the role claim and the operator groups decide who may release/delete.
+  # roles-claim: groups        # Okta default; use "roles" for Microsoft Entra ID
+  # operator-groups: []
+
+# OIDC client registration, for mode: oidc. The provider endpoints are read from
+# issuer-uri, so Okta and Entra ID differ only by these lines. See the README's
+# "Browser login against a provider (OIDC)" section.
+# spring:
+#   security:
+#     oauth2:
+#       client:
+#         registration:
+#           okta:
+#             client-id: {the-client-id}
+#             client-secret: {the-client-secret}
+#             provider: okta
+#         provider:
+#           okta:
+#             issuer-uri: https://{your-domain}.okta.com/oauth2/default
 
 logging:
   level:

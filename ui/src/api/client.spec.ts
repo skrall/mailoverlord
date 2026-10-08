@@ -311,6 +311,43 @@ describe('releaseMessages', () => {
   })
 })
 
+describe('CSRF handling', () => {
+  /**
+   * The OIDC session is a cookie, so state-changing requests must prove they came from the
+   * page. The server hands the token over as a readable cookie and wants it back as
+   * X-XSRF-TOKEN; both names are Spring Security's CookieCsrfTokenRepository defaults.
+   */
+  it('echoes the XSRF-TOKEN cookie back on a POST', async () => {
+    vi.stubGlobal('document', { cookie: 'XSRF-TOKEN=cookie-value' })
+    fetchMock.mockResolvedValue(jsonResponse({ successful: true }))
+
+    await deleteMessages([1])
+
+    const [, init] = fetchMock.mock.calls[0]
+    expect((init.headers as Record<string, string>)['X-XSRF-TOKEN']).toBe('cookie-value')
+  })
+
+  it('sends no CSRF header when the server set no cookie', async () => {
+    vi.stubGlobal('document', { cookie: '' })
+    fetchMock.mockResolvedValue(jsonResponse({ successful: true }))
+
+    await deleteMessages([1])
+
+    const [, init] = fetchMock.mock.calls[0]
+    expect((init.headers as Record<string, string>)['X-XSRF-TOKEN']).toBeUndefined()
+  })
+
+  it('does not add a CSRF header to a state-less GET', async () => {
+    vi.stubGlobal('document', { cookie: 'XSRF-TOKEN=still-there' })
+    fetchMock.mockResolvedValue(jsonResponse({ content: [] }))
+
+    await listMessages({ page: 0, size: 25 })
+
+    const [, init] = fetchMock.mock.calls[0]
+    expect((init.headers as Record<string, string>)['X-XSRF-TOKEN']).toBeUndefined()
+  })
+})
+
 describe('request failures', () => {
   it('throws an ApiError carrying the status', async () => {
     fetchMock.mockResolvedValue(jsonResponse({}, 400))
@@ -352,6 +389,31 @@ describe('request failures', () => {
     const assign = vi.fn()
     vi.stubGlobal('location', { assign })
     fetchMock.mockResolvedValue(jsonResponse({}, 401))
+
+    await expect(listMessages({ page: 0, size: 25 })).rejects.toMatchObject({ status: 401 })
+    expect(assign).toHaveBeenCalledWith('/login')
+  })
+
+  /**
+   * Under OIDC the API answers 401 with a problem detail naming the provider endpoint, so the
+   * browser is sent straight back into the login flow rather than to /login (which under OIDC
+   * is only the page that happens to list the providers).
+   */
+  it('uses the login-url the server names in the 401 problem detail', async () => {
+    const assign = vi.fn()
+    vi.stubGlobal('location', { assign })
+    fetchMock.mockResolvedValue(
+      jsonResponse({ 'login-url': '/oauth2/authorization/okta' }, 401),
+    )
+
+    await expect(listMessages({ page: 0, size: 25 })).rejects.toMatchObject({ status: 401 })
+    expect(assign).toHaveBeenCalledWith('/oauth2/authorization/okta')
+  })
+
+  it('still reaches /login when the 401 body is not JSON', async () => {
+    const assign = vi.fn()
+    vi.stubGlobal('location', { assign })
+    fetchMock.mockResolvedValue(textResponse('gateway says no', 401))
 
     await expect(listMessages({ page: 0, size: 25 })).rejects.toMatchObject({ status: 401 })
     expect(assign).toHaveBeenCalledWith('/login')

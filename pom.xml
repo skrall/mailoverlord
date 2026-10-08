@@ -93,6 +93,16 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
+        <!--
+            Browser login against an identity provider (Okta, Entra ID) via the authorization
+            code flow. Spring reads the provider endpoints from the registration's issuer-uri,
+            so the same integration serves both vendors; only the client registration differs.
+            See #57.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-client</artifactId>
+        </dependency>
 
         <!--
             Publishes an OpenAPI description of the JSON API at /v3/api-docs. The Vue UI
