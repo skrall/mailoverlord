@@ -37,6 +37,14 @@ function pageOf(subject: string, totalPages = 1): unknown {
   }
 }
 
+/**
+ * The window App.vue waits for the key to settle before it fetches a message.
+ *
+ * <p>Mirrors `DETAIL_DEBOUNCE_MS` in App.vue, which any test that wants a message to actually
+ * load has to step over.
+ */
+const DETAIL_DEBOUNCE_MS = 200
+
 let mounted: VueWrapper | undefined
 
 beforeEach(() => {
@@ -409,6 +417,7 @@ describe('error banner', () => {
     expect(banner(wrapper)).toContain('relay refused')
 
     await wrapper.find('#message-row-1').trigger('click')
+    await vi.advanceTimersByTimeAsync(DETAIL_DEBOUNCE_MS)
     await flushPromises()
 
     expect(banner(wrapper)).toContain('relay refused')
@@ -460,6 +469,7 @@ describe('error banner', () => {
         : Promise.resolve(jsonResponse(pageOf('Invoice'))),
     )
     await wrapper.find('#message-row-1').trigger('click')
+    await vi.advanceTimersByTimeAsync(DETAIL_DEBOUNCE_MS)
     await flushPromises()
 
     expect(banner(wrapper)).toContain('Message 1 is gone.')
@@ -469,6 +479,175 @@ describe('error banner', () => {
 function pressKey(key: string): void {
   document.body.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }))
 }
+
+describe('message detail loading', () => {
+  function isDetail(url: string): boolean {
+    return /\/messages\/\d+$/.test(url)
+  }
+
+  function detailCalls(): string[] {
+    return fetchMock.mock.calls.map(([url]) => url as string).filter(isDetail)
+  }
+
+  /** A page of `count` rows, so a held `j` has somewhere to go. */
+  function pageOfMany(count: number): unknown {
+    return {
+      content: Array.from({ length: count }, (_, index) => ({
+        id: index + 1,
+        from: `sender${index + 1}@test.com`,
+        to: 'to@test.com',
+        receivedTimestamp: '',
+        sizeBytes: 1,
+        subject: `Row ${index + 1}`,
+      })),
+      number: 0,
+      size: 25,
+      totalElements: count,
+      totalPages: 1,
+      first: true,
+      last: true,
+    }
+  }
+
+  function detailOf(id: number): unknown {
+    return {
+      id,
+      from: `sender${id}@test.com`,
+      to: 'to@test.com',
+      receivedTimestamp: '',
+      releasedTimestamp: null,
+      subject: `Detail ${id}`,
+      body: `Body ${id}`,
+      parts: [],
+    }
+  }
+
+  /** Serves the list from `pageOfMany` and each message from `detailOf`. */
+  function serveMultiRowList(): void {
+    fetchMock.mockImplementation((url: string) =>
+      url.includes('/messages/list')
+        ? Promise.resolve(jsonResponse(pageOfMany(4)))
+        : Promise.resolve(jsonResponse(detailOf(Number(url.match(/\/messages\/(\d+)/)?.[1] ?? 0)))),
+    )
+  }
+
+  /** One auto-repeated `j`, dispatched from the row the cursor is on. */
+  function pressJOn(id: number): void {
+    document
+      .querySelector<HTMLElement>(`#message-row-${id}`)
+      ?.dispatchEvent(new KeyboardEvent('keydown', { key: 'j', bubbles: true, cancelable: true }))
+  }
+
+  /**
+   * The whole point of #64: holding `j` repeats keydown tens of times a second and each repeat
+   * used to fetch the row it landed on. Only the row the cursor settles on may be requested.
+   *
+   * <p>The cursor still has to move while the key is down — the fetch waits, the focus does not,
+   * or the table feels like it is lagging behind the keyboard.
+   */
+  it('fetches only the row j stops on', async () => {
+    serveMultiRowList()
+    const wrapper = mountApp()
+    await flushPromises()
+
+    pressJOn(1)
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(60)
+    pressJOn(2)
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(60)
+    pressJOn(3)
+    await flushPromises()
+
+    // The key is still down, so nothing has been fetched — but the cursor has moved on.
+    expect(detailCalls()).toEqual([])
+    expect(wrapper.find('#message-row-4').classes()).toContain('active')
+
+    await vi.advanceTimersByTimeAsync(DETAIL_DEBOUNCE_MS)
+    await flushPromises()
+
+    expect(detailCalls()).toEqual(['/messages/4'])
+    expect(wrapper.text()).toContain('Detail 4')
+  })
+
+  it('still loads the message after a single press', async () => {
+    serveMultiRowList()
+    const wrapper = mountApp()
+    await flushPromises()
+
+    pressJOn(1)
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(DETAIL_DEBOUNCE_MS)
+    await flushPromises()
+
+    expect(detailCalls()).toEqual(['/messages/2'])
+    expect(wrapper.text()).toContain('Detail 2')
+  })
+
+  /**
+   * Two requests can be in flight together — a press that lands while the previous fetch is still
+   * on the wire. Whichever answered last used to win, so a row the cursor had skipped could
+   * repaint the panel over the one it settled on.
+   */
+  it('ignores a detail response that a newer one has overtaken', async () => {
+    const deferred: { resolve: (value: Response) => void }[] = []
+    fetchMock.mockImplementation((url: string) =>
+      url.includes('/messages/list')
+        ? Promise.resolve(jsonResponse(pageOfMany(4)))
+        : new Promise<Response>((resolve) => deferred.push({ resolve })),
+    )
+    const wrapper = mountApp()
+    await flushPromises()
+
+    pressJOn(1)
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(DETAIL_DEBOUNCE_MS)
+    await flushPromises()
+    pressJOn(2)
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(DETAIL_DEBOUNCE_MS)
+    await flushPromises()
+
+    expect(deferred).toHaveLength(2)
+
+    // The newer request answers first, then the older one arrives late.
+    deferred[1].resolve(jsonResponse(detailOf(3)))
+    await flushPromises()
+    deferred[0].resolve(jsonResponse(detailOf(2)))
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Detail 3')
+    expect(wrapper.text()).not.toContain('Detail 2')
+  })
+
+  /**
+   * Closing the panel retires the pending fetch as well. Otherwise a message that was dismissed
+   * mid-debounce loads itself back the moment the window clears.
+   */
+  it('does not reopen a message the user closed while it was loading', async () => {
+    serveMultiRowList()
+    const wrapper = mountApp()
+    await flushPromises()
+
+    // Read a message first, so the panel has a close button to press.
+    await wrapper.find('#message-row-1').trigger('click')
+    await vi.advanceTimersByTimeAsync(DETAIL_DEBOUNCE_MS)
+    await flushPromises()
+    expect(wrapper.text()).toContain('Detail 1')
+
+    // Move on, then close before the debounce clears.
+    pressJOn(1)
+    await flushPromises()
+    await wrapper.find('button[aria-label="Close the message"]').trigger('click')
+    await flushPromises()
+
+    await vi.advanceTimersByTimeAsync(DETAIL_DEBOUNCE_MS)
+    await flushPromises()
+
+    expect(detailCalls()).toEqual(['/messages/1'])
+    expect(wrapper.text()).toContain('Select a message to read it.')
+  })
+})
 
 describe('filter pane', () => {
   function pane(wrapper: VueWrapper) {
