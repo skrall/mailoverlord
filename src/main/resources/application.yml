@@ -1,6 +1,14 @@
+# The single identity the UI signs in with. This is an OPERATOR: it can read, release
+# and delete. Override MAILOVERLORD_PASSWORD or spring.security.user.password; leaving
+# this default in place means everyone who can reach mailoverlord's port can sign in.
 spring:
   application:
     name: mailoverlord
+
+  security:
+    user:
+      name: operator
+      password: ${MAILOVERLORD_PASSWORD:${SPRING_SECURITY_USER_PASSWORD:change-me-on-deploy}}
 
   mvc:
     # RFC 9457 error bodies. Without this the error statuses come back with no body at
@@ -40,6 +48,15 @@ mailoverlord:
   smtp:
     port: 2025
     bind-address: 127.0.0.1
+
+  # Every request needs HTTP Basic authentication. The documented user is the
+  # spring.security.user identity; add names to the operator/viewer lists to hand that
+  # shared password to others with a narrower role. Set mode to "none" only to run with
+  # no authentication at all, which is what the test suite does.
+  security:
+    mode: basic
+    operator-users: []
+    viewer-users: []
 
 logging:
   level:

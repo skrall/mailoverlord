@@ -121,9 +121,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   })
 
   if (!response.ok) {
+    if (response.status === 401) {
+      // Basic does not pop its dialog for `fetch`, so nothing the bearer of the 401 can do in
+      // place will help. A top-level navigation to /login is what makes the browser ask and
+      // then replay the SPA's calls with the credentials attached.
+      window.location.assign('/login')
+      throw new ApiError('Sign in required.', response.status)
+    }
     const failure = `${init?.method ?? 'GET'} ${path} failed with ${response.status}`
     const reason = await explanation(response)
-    throw new ApiError(reason ? `${failure}: ${reason}` : failure, response.status)
+    // A view-only user reaching release or delete is a permission problem, not a request
+    // problem; name it as one so the banner reads as "ask for more access", not "fix a query".
+    const message = reason ? `${failure}: ${reason}` : failure
+    throw new ApiError(
+      response.status === 403 && reason ? `Not allowed: ${reason}` : message,
+      response.status,
+    )
   }
 
   return (await response.json()) as T

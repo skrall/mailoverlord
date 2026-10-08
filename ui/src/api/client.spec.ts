@@ -343,6 +343,35 @@ describe('request failures', () => {
   })
 
   /**
+   * Basic authentication does not pop its dialog for fetch, so a 401 cannot be answered in
+   * place: the browser has to be sent to /login for the native prompt to appear. Surfacing the
+   * 401 as a banner would just tell the user about an error none of the buttons they can see
+   * fixes.
+   */
+  it('sends the browser to /login on a 401 instead of reporting it', async () => {
+    const assign = vi.fn()
+    vi.stubGlobal('location', { assign })
+    fetchMock.mockResolvedValue(jsonResponse({}, 401))
+
+    await expect(listMessages({ page: 0, size: 25 })).rejects.toMatchObject({ status: 401 })
+    expect(assign).toHaveBeenCalledWith('/login')
+  })
+
+  /**
+   * A view-only user reaching release or delete gets a 403, and the banner names it as a
+   * permission problem rather than the request being wrong. The status alone reads like a
+   * transient failure; the point is that nothing the user retries will fix it.
+   */
+  it('names a 403 as a permission problem', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ detail: 'You are not allowed to do that.' }, 403))
+
+    await expect(releaseMessages({ messageIds: [1], overrideTo: true })).rejects.toMatchObject({
+      message: 'Not allowed: You are not allowed to do that.',
+      status: 403,
+    })
+  })
+
+  /**
    * The status and the request say the call failed, which is useful and worth keeping whatever
    * else the body turned out to contain.
    */

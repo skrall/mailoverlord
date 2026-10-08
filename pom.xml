@@ -84,6 +84,15 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-mail</artifactId>
         </dependency>
+        <!--
+            Authentication and the release/read role split. The filter chain is selected by
+            mailoverlord.security.mode, so the mechanisms for later issues compose rather than
+            compete. See #56.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
 
         <!--
             Publishes an OpenAPI description of the JSON API at /v3/api-docs. The Vue UI
@@ -116,6 +125,14 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-webmvc-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- @WithMockUser for the authentication and role tests. The starter no longer
+             pulls this in, and even spring-boot-starter-test only carries it when it is
+             declared outright. -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
         <!--
