@@ -17,6 +17,7 @@ import org.springframework.context.annotation.Condition;
 import org.springframework.context.annotation.ConditionContext;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
 import org.springframework.core.type.AnnotatedTypeMetadata;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -37,10 +38,12 @@ import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.authentication.AnonymousAuthenticationFilter;
 import org.springframework.security.web.authentication.DelegatingAuthenticationEntryPoint;
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.NegatedRequestMatcher;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
@@ -64,11 +67,18 @@ import tools.jackson.databind.json.JsonMapper;
  * API as a problem detail whose {@code login-url} points at the configured provider, so the SPA
  * can restart the login flow; a browser navigation is redirected to the provider directly.
  *
+ * <p>{@code header} mode believes the identity a reverse proxy asserts instead of challenging
+ * for credentials at all: the app reads the {@code header} and {@code groups-header} headers,
+ * but only when the connection itself came from a {@code trusted-proxies} CIDR — any other
+ * request is answered 401 whatever it carries, because a header anyone can send is no proof of
+ * anything. Roles come from {@code operator-groups} through the same mapper OIDC uses. The mode
+ * has no session, no CSRF, and no login page: sign-in is the edge's job (see #58).
+ *
  * <p>The identities of {@code basic} mode are the {@code spring.security.user.*} identity and
  * every name in {@code mailoverlord.security.operator-users} and {@code viewer-users}, all
  * sharing the one {@code spring.security.user.password}. Under {@code oidc}, roles come from the
  * configured or {@code operator-groups} in the {@code roles-claim}. Roles split read from
- * mutation in both modes: OPERATOR may release and delete, VIEWER may only read.
+ * mutation in all three modes: OPERATOR may release and delete, VIEWER may only read.
  */
 @Configuration
 @EnableWebSecurity
@@ -104,11 +114,11 @@ public class SecurityConfig {
         protected abstract boolean matchesMode(String mode);
     }
 
-    /** Mode names, or defaults to, {@code basic} (and not {@code oidc}). */
-    static final class ModeIsNotOidc extends ModeCondition {
+    /** Mode names, or defaults to, {@code basic} (and not {@code oidc} or {@code header}). */
+    static final class ModeIsClassic extends ModeCondition {
         @Override
         protected boolean matchesMode(String mode) {
-            return !"oidc".equals(mode);
+            return !"oidc".equals(mode) && !"header".equals(mode);
         }
     }
 
@@ -117,6 +127,14 @@ public class SecurityConfig {
         @Override
         protected boolean matchesMode(String mode) {
             return "oidc".equals(mode);
+        }
+    }
+
+    /** Mode is {@code header}: trust the identity headers of a configured proxy only. */
+    static final class ModeIsHeader extends ModeCondition {
+        @Override
+        protected boolean matchesMode(String mode) {
+            return "header".equals(mode);
         }
     }
 
@@ -129,7 +147,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    @Conditional(ModeIsNotOidc.class)
+    @Conditional(ModeIsClassic.class)
     SecurityFilterChain securityFilterChain(HttpSecurity http,
             MailoverlordSecurityProperties properties, AuthenticationEntryPoint entryPoint,
             AccessDeniedHandler deniedHandler) throws Exception {
@@ -229,6 +247,99 @@ public class SecurityConfig {
         DelegatingAuthenticationEntryPoint delegating = new DelegatingAuthenticationEntryPoint(byPath);
         delegating.setDefaultEntryPoint(new LoginUrlAuthenticationEntryPoint(loginUrl));
         return delegating;
+    }
+
+    /**
+     * The trusted-header chain: it only ever matches a request whose connection came from a
+     * {@link TrustedProxyRequestMatcher configured proxy}, and treats the identity headers on
+     * those requests as authenticated. Stateless like Basic — the proxy authenticates, the app
+     * holds no session of its own.
+     */
+    @Bean
+    @Order(1)
+    @Conditional(ModeIsHeader.class)
+    SecurityFilterChain trustedHeaderSecurityFilterChain(HttpSecurity http,
+            TrustedProxyRequestMatcher trustedProxyMatcher,
+            TrustedHeaderAuthenticationFilter trustedHeaderFilter,
+            AuthenticationEntryPoint trustedHeaderEntryPoint, AccessDeniedHandler deniedHandler)
+            throws Exception {
+        http.securityMatcher(trustedProxyMatcher)
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .addFilterBefore(trustedHeaderFilter, AnonymousAuthenticationFilter.class)
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(trustedHeaderEntryPoint)
+                        .accessDeniedHandler(deniedHandler))
+                .authorizeHttpRequests(authorize -> authorize
+                        .requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll()
+                        .anyRequest().authenticated());
+        return http.build();
+    }
+
+    /**
+     * The other half of the boundary: any request that a trusted proxy did not make. This chain
+     * matches everything else, so it answers 401 whatever the request carries — the identity
+     * header is simply never believed here, which is what keeps the mode from being trivially
+     * forgeable by anyone who can reach the port directly.
+     */
+    @Bean
+    @Order(2)
+    @Conditional(ModeIsHeader.class)
+    SecurityFilterChain proxyBoundarySecurityFilterChain(HttpSecurity http,
+            TrustedProxyRequestMatcher trustedProxyMatcher,
+            AuthenticationEntryPoint trustedHeaderEntryPoint, AccessDeniedHandler deniedHandler)
+            throws Exception {
+        http.securityMatcher(new NegatedRequestMatcher(trustedProxyMatcher))
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(trustedHeaderEntryPoint)
+                        .accessDeniedHandler(deniedHandler))
+                .authorizeHttpRequests(authorize -> authorize
+                        .requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll()
+                        .anyRequest().authenticated());
+        return http.build();
+    }
+
+    /**
+     * The header-mode answer to an unauthenticated request. There is nothing for a browser to be
+     * sent to: the edge owns sign-in, so the SPA gets the problem detail and stays put (the client
+     * only navigates when the problem detail names a {@code login-url}), and no
+     * {@code WWW-Authenticate} is emitted because the app accepts no credentials of its own.
+     */
+    @Bean
+    @Conditional(ModeIsHeader.class)
+    AuthenticationEntryPoint trustedHeaderEntryPoint(JsonMapper jsonMapper,
+            MailoverlordSecurityProperties properties) {
+        return (request, response, exception) -> writeProblem(jsonMapper, response,
+                HttpStatus.UNAUTHORIZED,
+                "Authentication is required. The reverse proxy must set the "
+                        + properties.header() + " header, and the request must have reached the "
+                        + "app from a trusted proxy.",
+                Map.of());
+    }
+
+    /**
+     * The source allowlist shared by the two header-mode chains, so "trusted" means exactly the
+     * same thing on both sides of the boundary.
+     */
+    @Bean
+    @Conditional(ModeIsHeader.class)
+    TrustedProxyRequestMatcher trustedProxyMatcher(MailoverlordSecurityProperties properties) {
+        return new TrustedProxyRequestMatcher(properties.trustedProxies());
+    }
+
+    /**
+     * The pre-auth filter that reads the identity and groups headers into the mapped authorities.
+     */
+    @Bean
+    @Conditional(ModeIsHeader.class)
+    TrustedHeaderAuthenticationFilter trustedHeaderFilter(
+            MailoverlordSecurityProperties properties) {
+        return new TrustedHeaderAuthenticationFilter(properties.header(),
+                properties.groupsHeader(), new GroupRolesMapper(properties.operatorGroups()));
     }
 
     /**

@@ -63,11 +63,14 @@ java -jar target/mailoverlord-2.0.0-SNAPSHOT.jar \
 | `mailoverlord.smtp.bind-address` | `127.0.0.1` | IP address the embedded SMTP server binds to |
 | `mailoverlord.release.allowed-destinations` | empty (unrestricted) | Comma-separated list of glob patterns; if unset, all destinations are allowed |
 | `spring.datasource.url` | `jdbc:h2:mem:mailoverlord;DB_CLOSE_DELAY=-1` | Message store |
-| `mailoverlord.security.mode` | `basic` | Authentication mechanism: `basic` requires HTTP Basic on every request, `oidc` signs browsers in against an identity provider, `none` turns authentication off (how the test suite runs) |
+| `mailoverlord.security.mode` | `basic` | Authentication mechanism: `basic` requires HTTP Basic on every request, `oidc` signs browsers in against an identity provider, `header` trusts the identity a reverse proxy asserts, `none` turns authentication off (how the test suite runs) |
 | `mailoverlord.security.operator-users` | empty | Usernames that may also release and delete; they share the password below |
 | `mailoverlord.security.viewer-users` | empty | Usernames that may only read |
 | `mailoverlord.security.roles-claim` | `groups` | OIDC claim that carries group membership (Okta `groups`, Entra ID `roles`) |
-| `mailoverlord.security.operator-groups` | empty | OIDC group names that may release and delete |
+| `mailoverlord.security.operator-groups` | empty | OIDC or trusted-header group names that may release and delete |
+| `mailoverlord.security.header` | empty | Trusted-header mode: HTTP header the proxy sets with the signed-in user's name (`X-Auth-Request-User`, `X-Remote-User`) |
+| `mailoverlord.security.groups-header` | empty | Trusted-header mode: header carrying the user's comma-separated groups; absent, nobody is an OPERATOR |
+| `mailoverlord.security.trusted-proxies` | empty | Trusted-header mode: CIDRs whose connections come from the proxy; required, and a matching header from anywhere else is answered 401 |
 | `spring.security.user.name` | `operator` | The documented sign-in identity, always an OPERATOR |
 | `spring.security.user.password` | `change-me-on-deploy` | The one shared password. Override it with `MAILOVERLORD_PASSWORD`; the generated `spring.security.user.password` also works |
 
@@ -138,6 +141,62 @@ match.
 
 To send released mail back to Mailoverlord itself, set `--spring.mail.port=2025`; the
 released messages are then re-captured and show up in the UI again.
+
+### Trusting a reverse proxy's identity (header)
+
+The same jar can also live behind a reverse proxy that signs people in, with Mailoverlord
+trusting the identity the proxy put on the request. This is the smallest possible thing to sit
+behind something like oauth2-proxy or an nginx `auth_request`: the SPA never sees a token, and
+the app holds no session of its own — the proxy *is* the sign-in page.
+
+Set `mailoverlord.security.mode=header`, name the two headers, and say whose connections should
+be believed:
+
+```yaml
+mailoverlord:
+  security:
+    mode: header
+    header: X-Auth-Request-User        # the signed-in user, set by the proxy
+    groups-header: X-Auth-Request-Groups
+    operator-groups: [mailoverlord-operators]
+    trusted-proxies: [127.0.0.1/32]    # where the proxy connects from
+server:
+  forward-headers-strategy: framework  # parse X-Forwarded-* for the source check
+```
+
+The proxy authenticates and must **overwrite** the identity headers on every request it
+forwards — dropping any identity header a client sent rather than passing it through. oauth2-proxy
+sets `X-Auth-Request-User` and `X-Auth-Request-Groups` itself; with nginx, derive them from the
+sign-in cookie or an `auth_request` endpoint. A client that can reach Mailoverlord's port
+directly must never be able to present a header nobody wrote. Header names are up to you:
+`X-Auth-Request-User`, `X-Forwarded-User`, `X-Remote-User`, `SM_USER` all work, as long as proxy
+and app agree on the spelling.
+
+Three things guard the boundary, and all three are deliberate:
+
+1. **Source allowlist.** The identity header is read only on requests whose connection came from
+   a machine in `trusted-proxies`. A request carrying the same header from any other address is
+   answered 401 whatever it says: the address in the four bytes of the TCP peer is the one thing
+   the client cannot rewrite, so it is what vouches for the header.
+2. **Bind the app to the proxy only.** Keep Mailoverlord on loopback (its default) or a private
+   address behind the proxy. The header is only as trustworthy as the path it arrived on, so the
+   link between proxy and app must not be reachable from the internet.
+3. **Let the framework parse forwarded headers.** With `server.forward-headers-strategy:
+   framework` the app parses `X-Forwarded-For` and friends and uses the *real* connection peer
+   for the allowlist, instead of taking a client-spoofable header on trust.
+
+`trusted-proxies` ships empty, and `mode: header` without both an identity header and an
+allowlist is refused at startup rather than run — a header nobody vouches for would be one line
+of forgery away.
+
+A 401 under `header` mode names no login page for the browser to go to (the proxy owns that), so
+the UI stays put and shows the reason instead of reloading in a loop.
+
+Two limits are chosen, not accidental. The app never sees the proxy's session and cannot tell
+the upstream is gone, so a wrong `trusted-proxies` entry fails closed rather than slow:
+outsiders get 401s and an operator notices the door is closed, not a lingering hint of access.
+And anyone who can reach a trusted proxy can act as whoever the proxy signs in as — compromising
+the edge is compromising Mailoverlord, by design. See #58.
 
 Captured mail is kept in memory by default, so restarting Mailoverlord discards it. To
 keep messages across restarts, point H2 at a file instead:

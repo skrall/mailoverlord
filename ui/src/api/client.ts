@@ -123,12 +123,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     if (response.status === 401) {
-      // The API works on its own session cookie under OIDC, so a 401 means the session is
-      // gone and nothing a fetch can do in place will restore it. The server says where the
-      // browser should go: /login for Basic (whose prompt only shows on a top-level
-      // navigation) or /oauth2/authorization/{registrationId} to start an OIDC login.
-      window.location.assign(await loginUrl(response))
-      throw new ApiError('Sign in required.', response.status)
+      return unauthorized(response)
     }
     const failure = `${method} ${path} failed with ${response.status}`
     const reason = await explanation(response)
@@ -145,24 +140,57 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 /**
- * Where a 401 should send the browser. The problem detail says: /login for Basic, the token
- * endpoint for an OIDC login; a bodyless 401 — which is what a proxy tends to produce — falls
- * back to /login, which under Basic is correct and under OIDC is the page that lists the
- * providers.
+ * What a 401 does for the user. Two of the modes hand the browser over to a sign-in flow the
+ * SPA cannot run from a fetch: Basic answers 401 with a login-url of /login, whose prompt only
+ * shows on a top-level navigation, and OIDC answers with the token endpoint, which starts the
+ * authorization-code dance when navigated to. A bodyless or non-JSON 401 — what a proxy in front
+ * of the app tends to produce — goes to /login on the same reasoning.
+ *
+ * <p>Header mode is the exception that must not redirect at all. The reverse proxy owns sign-in,
+ * so its 401 is a problem detail with no login-url; there is no page to send the browser to, and
+ * posing the question again is what restores the identity header — redirecting would only reload
+ * the same page over a request that is still unauthorized. The proxy's detail is shown instead.
  */
-async function loginUrl(response: Response): Promise<string> {
+async function unauthorized(response: Response): Promise<never> {
+  const problem = await unauthorizedProblem(response)
+  if (problem === null) {
+    window.location.assign('/login')
+    throw new ApiError('Sign in required.', 401)
+  }
+  const { loginUrl, detail } = problem
+  if (loginUrl !== null) {
+    window.location.assign(loginUrl)
+    throw new ApiError('Sign in required.', 401)
+  }
+  throw new ApiError(detail ?? 'Sign in required.', 401)
+}
+
+/**
+ * The shape of a 401 the app itself wrote: an RFC 9457 problem detail naming a login-url (Basic
+ * and OIDC) or carrying only a detail because the app keeps no login flow of its own (header
+ * mode). Anything unrecognisable — an empty body or a proxy's HTML — comes back as null and is
+ * handled as "send the browser to /login".
+ */
+async function unauthorizedProblem(
+  response: Response,
+): Promise<{ loginUrl: string | null; detail: string | null } | null> {
   const body = await response.text()
   if (body.trim() === '') {
-    return '/login'
+    return null
   }
   try {
-    const problem = JSON.parse(body) as { 'login-url'?: unknown }
-    // The body is read here and never again, so the error still works if parsing fails.
-    return typeof problem['login-url'] === 'string' && problem['login-url'] !== ''
-      ? problem['login-url']
-      : '/login'
+    const problem = JSON.parse(body) as { 'login-url'?: unknown; detail?: unknown }
+    if (typeof problem !== 'object' || problem === null) {
+      return null
+    }
+    const loginUrl =
+      typeof problem['login-url'] === 'string' && problem['login-url'] !== ''
+        ? problem['login-url']
+        : null
+    const detail = typeof problem.detail === 'string' && problem.detail !== '' ? problem.detail : null
+    return { loginUrl, detail }
   } catch {
-    return '/login'
+    return null
   }
 }
 

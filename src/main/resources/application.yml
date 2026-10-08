@@ -41,6 +41,9 @@ spring:
 # Loopback only: the SMTP server is bound to 127.0.0.1 so that mailoverlord does not accept
 # arbitrary incoming mail on an open port. On a host that needs to receive from elsewhere,
 # override SERVER_ADDRESS and MAILOVERLORD_SMTP_BIND_ADDRESS as environment variables.
+# For mode: header, keep the app on an address only the proxy can reach and add
+#   server.forward-headers-strategy: framework
+# so the header source check uses the real connection peer rather than a spoofable header.
 server:
   address: 127.0.0.1
 
@@ -52,8 +55,9 @@ mailoverlord:
   # Every request needs HTTP Basic authentication. The documented user is the
   # spring.security.user identity; add names to the operator/viewer lists to hand that
   # shared password to others with a narrower role. Set mode to "oidc" to sign browsers in
-  # against an identity provider instead (see the README); set it to "none" only to run
-  # with no authentication at all, which is what the test suite does.
+  # against an identity provider, to "header" to trust the identity a reverse proxy asserts
+  # (both documented in the README), or to "none" only to run with no authentication at all,
+  # which is what the test suite does.
   security:
     mode: basic
     operator-users: []
@@ -62,6 +66,14 @@ mailoverlord:
   # With mode: oidc the role claim and the operator groups decide who may release/delete.
   # roles-claim: groups        # Okta default; use "roles" for Microsoft Entra ID
   # operator-groups: []
+
+  # With mode: header the reverse proxy signs people in and sets these two headers, and the
+  # allowlist says whose connections the identity is believed on. Startup refuses mode:
+  # header without both a header and an allowlist, on purpose: a header nobody vouches for
+  # would be one line of forgery away.
+  #   header: X-Auth-Request-User
+  #   groups-header: X-Auth-Request-Groups
+  #   trusted-proxies: [127.0.0.1/32]
 
 # OIDC client registration, for mode: oidc. The provider endpoints are read from
 # issuer-uri, so Okta and Entra ID differ only by these lines. See the README's
