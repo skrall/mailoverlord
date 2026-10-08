@@ -6,7 +6,6 @@ import java.util.Map;
 import java.util.Set;
 
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 
 /**
  * Turns the group-membership claim an identity provider hands over into the mailoverlord roles.
@@ -18,39 +17,26 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
  * configuration rather than code.
  *
  * <p>The claim shape is not always a JSON array: a single value arrives as a plain string, and
- * Entra carries {@code roles} as well as {@code wids}. Both shapes are normalised, and a group
- * is matched case-insensitively. Everyone authenticated is at least a VIEWER (reading an inbox
- * presupposes being admitted), and an OPERATOR also holds VIEWER, matching the Basic identity
- * model.
+ * Entra carries {@code roles} as well as {@code wids}. Both shapes are normalised before the
+ * roles are decided; the decision itself is {@link GroupRolesMapper}'s, so a trusted-header
+ * identity with the same groups gets the same authorities.
  */
 public final class OidcRolesMapper {
 
     private final String rolesClaim;
-    private final Set<String> operatorGroups;
+    private final GroupRolesMapper roles;
 
     public OidcRolesMapper(String rolesClaim, List<String> operatorGroups) {
+        this(rolesClaim, new GroupRolesMapper(operatorGroups));
+    }
+
+    OidcRolesMapper(String rolesClaim, GroupRolesMapper roles) {
         this.rolesClaim = rolesClaim;
-        Set<String> groups = new LinkedHashSet<>();
-        for (String group : operatorGroups) {
-            String trimmed = group.trim();
-            if (!trimmed.isEmpty()) {
-                groups.add(trimmed.toLowerCase());
-            }
-        }
-        this.operatorGroups = Set.copyOf(groups);
+        this.roles = roles;
     }
 
     public Set<GrantedAuthority> authoritiesFrom(Map<String, Object> claims) {
-        boolean operator = operatorGroups.isEmpty() ? false : readGroups(claims).stream()
-                .map(String::trim)
-                .map(String::toLowerCase)
-                .anyMatch(operatorGroups::contains);
-        Set<GrantedAuthority> authorities = new LinkedHashSet<>();
-        authorities.add(new SimpleGrantedAuthority("ROLE_VIEWER"));
-        if (operator) {
-            authorities.add(new SimpleGrantedAuthority("ROLE_OPERATOR"));
-        }
-        return authorities;
+        return roles.authoritiesFor(readGroups(claims));
     }
 
     private Set<String> readGroups(Map<String, Object> claims) {

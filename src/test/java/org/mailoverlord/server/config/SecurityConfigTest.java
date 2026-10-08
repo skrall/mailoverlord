@@ -147,6 +147,16 @@ public class SecurityConfigTest {
     }
 
     @Test
+    void anIdentityHeader_isNotTrustedUnlessTheModeIsHeader() throws Exception {
+        mockMvc.perform(get("/messages/list?page={p}&size={s}", 0, 25)
+                        .header("X-Remote-User", "admin")
+                        .header("X-Forwarded-Groups", "mailoverlord-operators"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().exists("WWW-Authenticate"));
+        verify(messageService, never()).listMessages(any(), any());
+    }
+
+    @Test
     void login_promptsForAuthenticationSoTheBrowserShowsTheBasicDialog() throws Exception {
         mockMvc.perform(get("/login"))
                 .andExpect(status().isUnauthorized())

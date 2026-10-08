@@ -385,10 +385,10 @@ describe('request failures', () => {
    * 401 as a banner would just tell the user about an error none of the buttons they can see
    * fixes.
    */
-  it('sends the browser to /login on a 401 instead of reporting it', async () => {
+  it('sends the browser to /login on a bodyless 401 instead of reporting it', async () => {
     const assign = vi.fn()
     vi.stubGlobal('location', { assign })
-    fetchMock.mockResolvedValue(jsonResponse({}, 401))
+    fetchMock.mockResolvedValue({ ok: false, status: 401, text: async () => '' } as unknown as Response)
 
     await expect(listMessages({ page: 0, size: 25 })).rejects.toMatchObject({ status: 401 })
     expect(assign).toHaveBeenCalledWith('/login')
@@ -417,6 +417,42 @@ describe('request failures', () => {
 
     await expect(listMessages({ page: 0, size: 25 })).rejects.toMatchObject({ status: 401 })
     expect(assign).toHaveBeenCalledWith('/login')
+  })
+
+  /**
+   * Header mode has no login flow of its own — the reverse proxy owns sign-in — so a 401 is a
+   * problem detail that names no login-url and there is nothing to navigate to. Redirecting
+   * would only reload the page over a request that is still unauthorized, so the browser stays
+   * put and the proxy's detail becomes the banner. See #58.
+   */
+  it('stays put when the 401 problem detail names no login-url', async () => {
+    const assign = vi.fn()
+    vi.stubGlobal('location', { assign })
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        { detail: 'Authentication is required. The reverse proxy must set the X-Remote-User header.' },
+        401,
+      ),
+    )
+
+    await expect(listMessages({ page: 0, size: 25 })).rejects.toMatchObject({
+      message:
+        'Authentication is required. The reverse proxy must set the X-Remote-User header.',
+      status: 401,
+    })
+    expect(assign).not.toHaveBeenCalled()
+  })
+
+  it('falls back to a fixed message when a JSON 401 explains nothing in the detail', async () => {
+    const assign = vi.fn()
+    vi.stubGlobal('location', { assign })
+    fetchMock.mockResolvedValue(jsonResponse({}, 401))
+
+    await expect(listMessages({ page: 0, size: 25 })).rejects.toMatchObject({
+      message: 'Sign in required.',
+      status: 401,
+    })
+    expect(assign).not.toHaveBeenCalled()
   })
 
   /**
