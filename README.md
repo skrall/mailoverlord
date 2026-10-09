@@ -60,6 +60,8 @@ java -jar target/mailoverlord-2.0.0-SNAPSHOT.jar \
 | `spring.mail.port` | `25` | Port released messages are sent to |
 | `server.address` | `127.0.0.1` | IP address the web server binds to |
 | `server.port` | `8080` | Web UI and API port |
+| `management.server.port` | `8090` | Port the actuator management plane listens on, separate from the application port |
+| `management.server.address` | `127.0.0.1` | IP address the management plane binds to |
 | `mailoverlord.smtp.bind-address` | `127.0.0.1` | IP address the embedded SMTP server binds to |
 | `mailoverlord.release.allowed-destinations` | empty (unrestricted) | Comma-separated list of glob patterns; if unset, all destinations are allowed |
 | `spring.datasource.url` | `jdbc:h2:mem:mailoverlord;DB_CLOSE_DELAY=-1` | Message store |
@@ -82,10 +84,33 @@ name added to `operator-users` or `viewer-users`; everyone shares the one
 `spring.security.user.password`. Set `mailoverlord.security.mode=none` only to run with no
 authentication at all.
 
+The actuator management plane (see below) runs on its own loopback-bound port and follows the
+same role split: `health`, `info` and `metrics` are open so a probe and the host can read them
+without credentials, while everything else under `/actuator/**` (`env`, `configprops`,
+`heapdump`, `loggers`, ...) requires an OPERATOR. `shutdown` is not enabled. This holds in every
+mode, including `header`, where the proxy boundary answers 401 before the role check just as it
+does for the API.
+
 Because Basic does not pop its dialog for `fetch`, the UI sends the browser to `/login` when the
 API answers 401, which is what makes the browser ask for credentials; after that it reloads and
 the calls carry the credentials. A VIEWER reaching release or delete is told it is a permission
 problem. `curl --user operator:password ...` works the same way against the API. See #56.
+
+### Management plane (actuator)
+
+Actuator lives on its own port, `8090` by default, bound to `127.0.0.1` like the rest of the
+app — an attacker who reaches the application port never sees an actuator route. From the host:
+
+```bash
+curl http://localhost:8090/actuator/health     # component status, DB and disk checks
+curl http://localhost:8090/actuator/info
+curl http://localhost:8090/actuator/metrics/jvm.memory.used
+curl -u operator:your-password http://localhost:8090/actuator/env    # OPERATOR only
+```
+
+Read access for an operator and the probe is baked in: `health`, `info` and `metrics` need no
+credential (the DB and disk checks are the health details), the rest needs an OPERATOR role, and
+`shutdown` stays off.
 
 ### Browser login against a provider (OIDC)
 
@@ -281,9 +306,10 @@ docker compose --profile postgres up
 
 Each profile starts the database next to the application, waits for the database to report
 healthy, and points the application at it. Only the application's ports are published, and
-only on the host's loopback (`127.0.0.1:8080` and `127.0.0.1:2025`); the database stays on
-the compose network. Data lives in a named volume per engine, so it survives `down` and `up`;
-`docker compose --profile <engine> down -v` deletes it.
+only on the host's loopback (`127.0.0.1:8080`, `127.0.0.1:2025`, and the actuator management
+port `127.0.0.1:8090`); the database stays on the compose network. Data lives in a named volume
+per engine, so it survives `down` and `up`; `docker compose --profile <engine> down -v` deletes
+it.
 
 Schema updates only add what is missing: a volume that was created before a column type
 change keeps its old DDL. If Hibernate ever grew a column's declared size (the message body

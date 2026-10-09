@@ -6,27 +6,33 @@
 #
 # The engines are postgres, mysql, mariadb, oracle, mssql and h2 (h2 runs the app alone, with
 # its data on a volume). Only the app's ports are published, and only on the host's loopback:
-# the database stays on the compose network and is never reachable from outside.
+# the database stays on the compose network and is never reachable from outside. The
+# management port 8090 carries the actuator endpoints (see #72), so it is published the same
+# loopback-only way: reachable from the host, from nowhere else.
 
 x-app-common: &app-common
   image: ${MAILOVERLORD_IMAGE:-mailoverlord:2.0.0-SNAPSHOT}
   ports:
     - "127.0.0.1:8080:8080"
     - "127.0.0.1:2025:2025"
+    # The actuator management port, published loopback-only like the others: health, metrics
+    # and the OPERATOR-guarded endpoints are read from the host at http://127.0.0.1:8090.
+    - "127.0.0.1:8090:8090"
 
 # Shared environment for every app container. MAILOVERLORD_PASSWORD is required because the
 # image's built-in default is a published value; the DB passwords are optional so that running
 # one profile does not force you to set the others, and the database container itself refuses to
 # start without its own password.
 #
-# The app defaults to loopback binds (server.address / mailoverlord.smtp.bind-address in
-# application.yml). The image bakes a 0.0.0.0 override so the published ports work, but these
-# two are stated here anyway: they make the file self-sufficient against an image built before
-# that, and they document what the container needs.
+# The app defaults to loopback binds (server.address / mailoverlord.smtp.bind-address /
+# management.server.address in application.yml). The image bakes a 0.0.0.0 override so the
+# published ports work, but the binds are stated here anyway: they make the file self-sufficient
+# against an image built before that, and they document what the container needs.
 x-app-env: &app-env
   MAILOVERLORD_PASSWORD: ${MAILOVERLORD_PASSWORD:?set MAILOVERLORD_PASSWORD in .env}
   SERVER_ADDRESS: "0.0.0.0"
   MAILOVERLORD_SMTP_BIND_ADDRESS: "0.0.0.0"
+  MANAGEMENT_SERVER_ADDRESS: "0.0.0.0"
 
 services:
   # ---------------------------------------------------------------- postgres

@@ -162,4 +162,36 @@ public class SecurityConfigTest {
                 .andExpect(status().isUnauthorized())
                 .andExpect(header().exists("WWW-Authenticate"));
     }
+
+    @Test
+    void actuatorHealth_needsNoCredentials() throws Exception {
+        // The slice mounts no actuator endpoints, so a NotFound rather than a challenge is what
+        // proves the request passed the permitAll. Same pattern as the OpenAPI tests.
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isNotFound())
+                .andExpect(header().doesNotExist("WWW-Authenticate"));
+        mockMvc.perform(get("/actuator/info"))
+                .andExpect(status().isNotFound());
+        mockMvc.perform(get("/actuator/metrics"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void actuatorInternalEndpoints_rejectAnonymousAndViewer() throws Exception {
+        mockMvc.perform(get("/actuator/env"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().exists("WWW-Authenticate"));
+        mockMvc.perform(get("/actuator/env").with(httpBasic(VIEWER, "test-password")))
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
+                .andExpect(jsonPath("$.detail").value("You are not allowed to do that."));
+    }
+
+    @Test
+    void actuatorInternalEndpoints_areReachableByAnOperator() throws Exception {
+        // 404 rather than a 403: the operator cleared the role guard, and only the slice's
+        // missing actuator beans turned it into a NotFound.
+        mockMvc.perform(get("/actuator/env").with(httpBasic(OPERATOR, "test-password")))
+                .andExpect(status().isNotFound());
+    }
 }

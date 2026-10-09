@@ -47,6 +47,35 @@ spring:
 server:
   address: 127.0.0.1
 
+# The management plane (actuator) runs on its own loopback-only port, separate from the
+# application port, so an attacker who reaches :8080 never sees an actuator route. The
+# Docker image and profiles publish 127.0.0.1:8090 so an operator can read health, metrics
+# and the rest from the host. See #72.
+management:
+  server:
+    port: 8090
+    address: 127.0.0.1
+  health:
+    # The mail indicator probes the release target (spring.mail.*) at health time. That
+    # server is optional and often absent (the Docker profiles have no MTA on port 25), so
+    # reporting DOWN every time it is not up would drown the checks that matter. DB and disk
+    # availability are what tell an operator the app itself is alive.
+    mail:
+      enabled: false
+  endpoints:
+    web:
+      # Anything useful for a live install is enabled; the endpoints that take or hand over
+      # state are protected by role in SecurityConfig rather than unregistered, so their
+      # availability is visible on this page.
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      # The health page is what an operator reads from the host, so it shows the database
+      # and disk checks rather than a bare UP. The management port is loopback-only, which
+      # is what makes the details safe to expose without credentials.
+      show-details: always
+
 mailoverlord:
   smtp:
     port: 2025

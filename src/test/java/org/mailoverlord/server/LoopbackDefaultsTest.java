@@ -56,6 +56,20 @@ class LoopbackDefaultsTest extends AbstractMailoverlordIntegrationTest {
     }
 
     @Test
+    @SuppressWarnings("unchecked")
+    void managementPlaneDefaultsToItsOwnLoopbackPort() throws IOException {
+        Map<String, Object> root = YAML.load(Files.readString(CONFIG));
+        Map<String, Object> managementServer = (Map<String, Object>)
+                ((Map<String, Object>) root.get("management")).get("server");
+
+        assertThat(managementServer)
+                .as("the management plane must bind to loopback like the other listeners")
+                .containsEntry("address", LOOPBACK)
+                .as("and live on its own port, separate from the application port")
+                .containsEntry("port", 8090);
+    }
+
+    @Test
     void smtpServerIsBoundToLoopbackAtStartup() {
         assertThat(smtpServer.getBindAddress())
                 .as("what the SMTP server actually bound to")

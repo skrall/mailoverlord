@@ -94,6 +94,16 @@
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
         <!--
+            The management plane: a health endpoint the Docker profiles can probe and that an
+            operator can read from the host, plus the metrics/loggers/etc. endpoints see #72.
+            It runs on its own port (management.server.port) so the application port never
+            ships actuator routes.
+        -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <!--
             Browser login against an identity provider (Okta, Entra ID) via the authorization
             code flow. Spring reads the provider endpoints from the registration's issuer-uri,
             so the same integration serves both vendors; only the client registration differs.
@@ -212,6 +222,7 @@
                             -->
                             <BPE_SERVER_ADDRESS>0.0.0.0</BPE_SERVER_ADDRESS>
                             <BPE_MAILOVERLORD_SMTP_BIND_ADDRESS>0.0.0.0</BPE_MAILOVERLORD_SMTP_BIND_ADDRESS>
+                            <BPE_MANAGEMENT_SERVER_ADDRESS>0.0.0.0</BPE_MANAGEMENT_SERVER_ADDRESS>
                         </env>
                     </image>
                 </configuration>
