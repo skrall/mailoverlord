@@ -1,0 +1,215 @@
+# Runs Mailoverlord against a database of your choice, one profile per engine:
+#
+#   ./mvnw spring-boot:build-image          # produces the image this file references
+#   cp .env.example .env                    # then set MAILOVERLORD_PASSWORD and a DB password
+#   docker compose --profile postgres up
+#
+# The engines are postgres, mysql, mariadb, oracle, mssql and h2 (h2 runs the app alone, with
+# its data on a volume). Only the app's ports are published, and only on the host's loopback:
+# the database stays on the compose network and is never reachable from outside.
+
+x-app-common: &app-common
+  image: ${MAILOVERLORD_IMAGE:-mailoverlord:2.0.0-SNAPSHOT}
+  ports:
+    - "127.0.0.1:8080:8080"
+    - "127.0.0.1:2025:2025"
+
+# Shared environment for every app container. MAILOVERLORD_PASSWORD is required because the
+# image's built-in default is a published value; the DB passwords are optional so that running
+# one profile does not force you to set the others, and the database container itself refuses to
+# start without its own password.
+#
+# The app defaults to loopback binds (server.address / mailoverlord.smtp.bind-address in
+# application.yml). The image bakes a 0.0.0.0 override so the published ports work, but these
+# two are stated here anyway: they make the file self-sufficient against an image built before
+# that, and they document what the container needs.
+x-app-env: &app-env
+  MAILOVERLORD_PASSWORD: ${MAILOVERLORD_PASSWORD:?set MAILOVERLORD_PASSWORD in .env}
+  SERVER_ADDRESS: "0.0.0.0"
+  MAILOVERLORD_SMTP_BIND_ADDRESS: "0.0.0.0"
+
+services:
+  # ---------------------------------------------------------------- postgres
+  postgres:
+    profiles: [postgres]
+    image: postgres:17
+    environment:
+      POSTGRES_DB: mailoverlord
+      POSTGRES_USER: mailoverlord
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
+    volumes:
+      - mailoverlord-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mailoverlord -d mailoverlord"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  mailoverlord-postgres:
+    <<: *app-common
+    profiles: [postgres]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *app-env
+      # The app defaults to the H2 driver (application.yml pins it), so a profile that points
+      # elsewhere must state the driver explicitly, like the test suite's DB_DRIVER.
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/mailoverlord
+      SPRING_DATASOURCE_USERNAME: mailoverlord
+      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-}
+
+  # ------------------------------------------------------------------- mysql
+  mysql:
+    profiles: [mysql]
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: mailoverlord
+      MYSQL_USER: mailoverlord
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-}
+    volumes:
+      - mailoverlord-mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  mailoverlord-mysql:
+    <<: *app-common
+    profiles: [mysql]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      <<: *app-env
+      # allowPublicKeyRetrieval: connector/J 8+ needs it for caching_sha2_password over a
+      # non-TLS socket, which is what the compose network is.
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/mailoverlord?allowPublicKeyRetrieval=true&useSSL=false
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: com.mysql.cj.jdbc.Driver
+      SPRING_DATASOURCE_USERNAME: mailoverlord
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:-}
+
+  # ----------------------------------------------------------------- mariadb
+  mariadb:
+    profiles: [mariadb]
+    image: mariadb:11
+    environment:
+      MARIADB_DATABASE: mailoverlord
+      MARIADB_USER: mailoverlord
+      MARIADB_PASSWORD: ${MARIADB_PASSWORD:-}
+      MARIADB_ROOT_PASSWORD: ${MARIADB_ROOT_PASSWORD:-}
+    volumes:
+      - mailoverlord-mariadb:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  mailoverlord-mariadb:
+    <<: *app-common
+    profiles: [mariadb]
+    depends_on:
+      mariadb:
+        condition: service_healthy
+    environment:
+      <<: *app-env
+      SPRING_DATASOURCE_URL: jdbc:mariadb://mariadb:3306/mailoverlord
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.mariadb.jdbc.Driver
+      SPRING_DATASOURCE_USERNAME: mailoverlord
+      SPRING_DATASOURCE_PASSWORD: ${MARIADB_PASSWORD:-}
+
+  # ------------------------------------------------------------------ oracle
+  oracle:
+    profiles: [oracle]
+    image: gvenzl/oracle-free:23-slim
+    environment:
+      # The SYS password and the APP_USER password are the same value here; set a second
+      # variable if you would rather they differ.
+      ORACLE_PASSWORD: ${ORACLE_PASSWORD:-}
+      APP_USER: mailoverlord
+      APP_USER_PASSWORD: ${ORACLE_PASSWORD:-}
+    volumes:
+      - mailoverlord-oracle:/opt/oracle/oradata
+    healthcheck:
+      test: ["CMD", "healthcheck.sh"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 90s
+
+  mailoverlord-oracle:
+    <<: *app-common
+    profiles: [oracle]
+    depends_on:
+      oracle:
+        condition: service_healthy
+    environment:
+      <<: *app-env
+      SPRING_DATASOURCE_URL: jdbc:oracle:thin:@oracle:1521/FREEPDB1
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: oracle.jdbc.OracleDriver
+      SPRING_DATASOURCE_USERNAME: mailoverlord
+      SPRING_DATASOURCE_PASSWORD: ${ORACLE_PASSWORD:-}
+
+  # ------------------------------------------------------------------- mssql
+  mssql:
+    profiles: [mssql]
+    # amd64 only. There is no arm64 image, so on Apple Silicon this needs emulation.
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-}
+    volumes:
+      - mailoverlord-mssql:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1'"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+
+  mailoverlord-mssql:
+    <<: *app-common
+    profiles: [mssql]
+    depends_on:
+      mssql:
+        condition: service_healthy
+    environment:
+      <<: *app-env
+      # mssql-jdbc 10+ encrypts by default; the server's certificate is self-signed, so trust it
+      # rather than negotiating TLS on the internal network.
+      SPRING_DATASOURCE_URL: "jdbc:sqlserver://mssql:1433;databaseName=mailoverlord;encrypt=false;trustServerCertificate=true"
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: com.microsoft.sqlserver.jdbc.SQLServerDriver
+      SPRING_DATASOURCE_USERNAME: sa
+      SPRING_DATASOURCE_PASSWORD: ${MSSQL_SA_PASSWORD:-}
+
+  # ---------------------------------------------------------------------- h2
+  # The app image already ships H2, so this profile has no database container: it is the app
+  # with a volume mounted and the file URL pointed at it. The image runs as uid 1002 while Docker
+  # creates the volume root-owned, so it has to run as root to write there. This is the least
+  # durable option and the data should be treated as throwaway.
+  mailoverlord-h2:
+    <<: *app-common
+    profiles: [h2]
+    user: "0"
+    volumes:
+      - mailoverlord-h2:/data
+    environment:
+      <<: *app-env
+      SPRING_DATASOURCE_URL: "jdbc:h2:file:/data/mailoverlord;DB_CLOSE_ON_EXIT=FALSE"
+      SPRING_DATASOURCE_USERNAME: sa
+      SPRING_DATASOURCE_PASSWORD: ""
+
+volumes:
+  mailoverlord-postgres:
+  mailoverlord-mysql:
+  mailoverlord-mariadb:
+  mailoverlord-oracle:
+  mailoverlord-mssql:
+  mailoverlord-h2:

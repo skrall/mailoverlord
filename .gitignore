@@ -4,6 +4,9 @@ target
 data
 overlord-jetty.properties
 
+# Local secrets for docker-compose.yml; .env.example is the committed template.
+.env
+
 # Eclipse workspace metadata, per developer rather than per project
 .classpath
 .project

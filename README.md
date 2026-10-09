@@ -268,6 +268,47 @@ root, is to bind-mount a host directory that the image's uid 1002 already owns, 
 `SPRING_DATASOURCE_URL` at a real Postgres or MySQL, which is the better choice anyway for
 anything long-lived.
 
+### Databases with Docker Compose
+
+The image bundles JDBC drivers for Postgres, MySQL, MariaDB, Oracle and SQL Server alongside
+the built-in H2, and `docker-compose.yml` offers one profile per engine:
+
+```bash
+./mvnw spring-boot:build-image   # produce the mailoverlord:2.0.0-SNAPSHOT image
+cp .env.example .env             # then set MAILOVERLORD_PASSWORD and a database password
+docker compose --profile postgres up
+```
+
+Each profile starts the database next to the application, waits for the database to report
+healthy, and points the application at it. Only the application's ports are published, and
+only on the host's loopback (`127.0.0.1:8080` and `127.0.0.1:2025`); the database stays on
+the compose network. Data lives in a named volume per engine, so it survives `down` and `up`;
+`docker compose --profile <engine> down -v` deletes it.
+
+| Profile     | Image                          | JDBC URL / notes                                            |
+|-------------|--------------------------------|-------------------------------------------------------------|
+| `postgres`  | `postgres:17`                  | `jdbc:postgresql://postgres:5432/mailoverlord`              |
+| `mysql`     | `mysql:8.4`                    | `...?allowPublicKeyRetrieval=true&useSSL=false`             |
+| `mariadb`   | `mariadb:11`                   | `jdbc:mariadb://mariadb:3306/mailoverlord`                  |
+| `oracle`    | `gvenzl/oracle-free:23-slim`   | slow first start; large image                               |
+| `mssql`     | `mcr.microsoft.com/mssql/server:2022-latest` | amd64 only                 |
+| `h2`        | — (the app ships H2)           | file-backed H2 on a volume, run as root                     |
+
+Secrets come from `.env`, which is git-ignored; the committed `.env.example` is the
+template. `MAILOVERLORD_PASSWORD` is required by every profile. Each engine's password is
+only needed for its own profile (the database container refuses to start without it), and the
+`h2` profile needs none. SQL Server's password must satisfy its own complexity rules.
+
+A few caveats from the table deserve detail:
+
+- `mssql` is the only amd64-only image here; Apple Silicon runs it under emulation.
+  The URL passes `encrypt=false;trustServerCertificate=true` because mssql-jdbc 10+
+  insists on TLS by default and the internal compose network does not carry certificates.
+- `mysql` passes `allowPublicKeyRetrieval=true&useSSL=false`: connector/J 8+ needs that
+  flag for `caching_sha2_password` over the compose network's non-TLS socket.
+- `h2` runs the exact same file-backed setup as the section above (root, named volume), so
+  it shares that caveat.
+
 ## Native image
 
 Mailoverlord also builds as a GraalVM native image, which is what the Paketo `native-image`
