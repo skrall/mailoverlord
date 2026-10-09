@@ -285,6 +285,11 @@ only on the host's loopback (`127.0.0.1:8080` and `127.0.0.1:2025`); the databas
 the compose network. Data lives in a named volume per engine, so it survives `down` and `up`;
 `docker compose --profile <engine> down -v` deletes it.
 
+Schema updates only add what is missing: a volume that was created before a column type
+change keeps its old DDL. If Hibernate ever grew a column's declared size (the message body
+length was fixed once), recreate the volume with `down -v` rather than expecting an in-place
+alter.
+
 | Profile     | Image                          | JDBC URL / notes                                            |
 |-------------|--------------------------------|-------------------------------------------------------------|
 | `postgres`  | `postgres:17`                  | `jdbc:postgresql://postgres:5432/mailoverlord`              |
@@ -302,8 +307,12 @@ only needed for its own profile (the database container refuses to start without
 A few caveats from the table deserve detail:
 
 - `mssql` is the only amd64-only image here; Apple Silicon runs it under emulation.
-  The URL passes `encrypt=false;trustServerCertificate=true` because mssql-jdbc 10+
-  insists on TLS by default and the internal compose network does not carry certificates.
+  Its entrypoint creates the `mailoverlord` database on first start (SQL Server has no
+  `CREATE DATABASE IF NOT EXISTS`-style flow from a volume, so the app's
+  `databaseName=mailoverlord` would otherwise fail to connect), and the healthcheck waits
+  for that database rather than just the server. The URL passes
+  `encrypt=false;trustServerCertificate=true` because mssql-jdbc 10+ insists on TLS by
+  default and the internal compose network does not carry certificates.
 - `mysql` passes `allowPublicKeyRetrieval=true&useSSL=false`: connector/J 8+ needs that
   flag for `caching_sha2_password` over the compose network's non-TLS socket.
 - `h2` runs the exact same file-backed setup as the section above (root, named volume), so

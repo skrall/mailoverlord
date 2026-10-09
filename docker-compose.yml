@@ -167,8 +167,26 @@ services:
       MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD:-}
     volumes:
       - mailoverlord-mssql:/var/opt/mssql
+    # The image's entrypoint runs sqlservr and nothing else, and the app connects to a
+    # databaseName=mailoverlord that does not otherwise exist, so this starts the server in the
+    # background, waits for it to answer, and creates the database. The healthcheck below
+    # additionally requires the database to exist, so depends_on: service_healthy guarantees the
+    # app will find it. The trailing wait keeps sqlservr under this shell as the container's
+    # foreground process.
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        /opt/mssql/bin/sqlservr &
+        for i in $$(seq 1 120); do
+          /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -Q "SELECT 1" >/dev/null 2>&1 && break
+          sleep 1
+        done
+        /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" \
+          -Q "IF DB_ID('mailoverlord') IS NULL CREATE DATABASE mailoverlord"
+        wait
     healthcheck:
-      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1'"]
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q \"IF DB_ID('mailoverlord') IS NULL THROW 50000, 'mailoverlord not created yet', 1\""]
       interval: 10s
       timeout: 10s
       retries: 30

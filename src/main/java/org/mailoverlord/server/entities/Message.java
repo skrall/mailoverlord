@@ -114,19 +114,21 @@ public class Message {
 /**
      * The stored message, as received.
      *
-     * <p>{@code @Lob} is what makes this a BLOB. Without it Hibernate maps a {@code byte[]} to
-     * {@code VARBINARY}, which defaults to 255 bytes and rejects any real message, so this
-     * annotation is load-bearing rather than decorative. The old {@code length} attribute had
-     * the opposite effect to what it looked like: Hibernate only falls back to a BLOB when the
-     * declared length is too large for an inline column, so the 10 MB constant was producing
-     * an unbounded BLOB by accident, and removing it silently produced {@code VARBINARY(255)}.
+     * <p>{@code @Lob} is what makes this a BLOB: without it Hibernate maps a {@code byte[]} to
+     * {@code VARBINARY} and downgrades this to 255 bytes. The explicit {@code length} is what
+     * keeps each dialect on its unbounded binary type. The default JPA column length of 255
+     * leaks through to dialects that pick a concrete type by declared size: MySQL and MariaDB
+     * then create a {@code TINYBLOB} and reject any real message with "Data too long for column
+     * 'data'". {@code Integer.MAX_VALUE} exceeds every dialect's largest capacity, so they fall
+     * back to their biggest blob type ({@code LONGBLOB}, {@code varbinary(max)}, H2 and Oracle
+     * {@code BLOB}); Postgres ignores the declared length for a {@code @Lob}.
      *
      * <p>The size limit is therefore enforced while reading the message off the socket, in
      * {@code DatabaseMessageHandlerFactory}, and is configurable as
      * {@code mailoverlord.smtp.max-message-size}. The column itself is not the boundary.
      */
     @Lob
-    @Column(name = "DATA")
+    @Column(name = "DATA", length = Integer.MAX_VALUE)
     public byte[] getData() {
         return data;
     }

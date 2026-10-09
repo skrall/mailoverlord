@@ -67,9 +67,14 @@ public class ReleaseAudit {
      * The requested ids as a JSON array, e.g. {@code "[1, 2]"}, one byte of JSON in a text
      * column rather than a relation, since the ids are a flat list that is read for display
      * only, never queried.
+     *
+     * <p>As with {@link org.mailoverlord.server.entities.Message#getData()}, the explicit
+     * {@code length} keeps MySQL and MariaDB from sizing this as their smallest text type;
+     * Hibernate uses the declared length to pick a capacity, and the default 255 would become
+     * {@code TINYTEXT}, too small once a release covers many ids.
      */
     @Lob
-    @Column(name = "MESSAGE_IDS")
+    @Column(name = "MESSAGE_IDS", length = Integer.MAX_VALUE)
     public String getMessageIds() {
         return messageIds;
     }
@@ -92,10 +97,12 @@ public class ReleaseAudit {
     }
 
     /**
-     * The resolved recipients of the batch, comma-separated.
+     * The resolved recipients of the batch, comma-separated. The explicit {@code length} has
+     * the same role as the one on {@link #getMessageIds()}: without it MySQL and MariaDB create
+     * a {@code TINYTEXT} that any release to many recipients overflows.
      */
     @Lob
-    @Column(name = "DESTINATIONS")
+    @Column(name = "DESTINATIONS", length = Integer.MAX_VALUE)
     public String getDestinations() {
         return destinations;
     }
