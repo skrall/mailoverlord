@@ -110,7 +110,8 @@ curl -u operator:your-password http://localhost:8090/actuator/env    # OPERATOR 
 
 Read access for an operator and the probe is baked in: `health`, `info` and `metrics` need no
 credential (the DB and disk checks are the health details), the rest needs an OPERATOR role, and
-`shutdown` stays off.
+`shutdown` stays off. The Docker image's container healthcheck probes this same endpoint, so the
+compose stack reports `(healthy)` when the app and its database are ready.
 
 ### Browser login against a provider (OIDC)
 
@@ -310,6 +311,13 @@ only on the host's loopback (`127.0.0.1:8080`, `127.0.0.1:2025`, and the actuato
 port `127.0.0.1:8090`); the database stays on the compose network. Data lives in a named volume
 per engine, so it survives `down` and `up`; `docker compose --profile <engine> down -v` deletes
 it.
+
+Each application container carries a Docker healthcheck that probes
+`http://127.0.0.1:8090/actuator/health`, so `docker compose ps` reports `(healthy)` once the app
+and its database are up. The image is distroless — no shell, no `curl` — so the probe execs the
+Paketo [tiny-health-checker](https://github.com/dmikusa/tiny-health-checker) binary
+(`/workspace/health-check`) that the `health-checker` buildpack installs at build time (see
+`pom.xml`); its target comes from the `THC_*` variables in `docker-compose.yml`.
 
 Schema updates only add what is missing: a volume that was created before a column type
 change keeps its old DDL. If Hibernate ever grew a column's declared size (the message body
