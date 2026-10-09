@@ -60,20 +60,29 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
      * behaviour has to be identical everywhere. The {@code escape} clause matches the escaping
      * {@link MessageFilter} applies; see that class for why the wildcards are not left alone.
      *
+     * <p>The {@code cast(... as ...)} around each parameter gives PostgreSQL a type to bind.
+     * Hibernate binds a null {@code String} as an untyped parameter, and PostgreSQL cannot infer
+     * a type for a parameter that only appears under {@code is null} (the comparison operands do
+     * not help: each usage is a separate placeholder). Left untyped, {@code lower(?) } is read as
+     * {@code lower(bytea)}, which does not exist, so the query aborts at runtime:
+     * {@code 42P18}/{@code 42883}. The {@code is null} guard keeps an empty filter matching
+     * everything, the cast's value is only null-tested there, and the comparison operand on the
+     * right keeps its original typed binding, so no filtering behaviour changes.
+     *
      * <p>The parameter names are deliberately not {@code from} and {@code to}: those are JPQL
      * keywords, and a named parameter that collides with one is not worth the ambiguity.
      */
     @Query("select new org.mailoverlord.server.model.MessageSummary("
             + "m.id, m.from, m.to, m.receivedTimestamp, m.releasedTimestamp, coalesce(m.sizeBytes, 0), m.subject) "
             + "from Message m "
-            + "where (:subjectText is null "
-            + "    or lower(m.subject) like concat('%', lower(:subjectText), '%') escape '!') "
-            + "and (:fromText is null "
-            + "    or lower(m.from) like concat('%', lower(:fromText), '%') escape '!') "
-            + "and (:toText is null "
-            + "    or lower(m.to) like concat('%', lower(:toText), '%') escape '!') "
-            + "and (:receivedFrom is null or m.receivedTimestamp >= :receivedFrom) "
-            + "and (:receivedTo is null or m.receivedTimestamp <= :receivedTo)")
+            + "where (cast(:subjectText as string) is null "
+            + "    or lower(m.subject) like concat('%', lower(cast(:subjectText as string)), '%') escape '!') "
+            + "and (cast(:fromText as string) is null "
+            + "    or lower(m.from) like concat('%', lower(cast(:fromText as string)), '%') escape '!') "
+            + "and (cast(:toText as string) is null "
+            + "    or lower(m.to) like concat('%', lower(cast(:toText as string)), '%') escape '!') "
+            + "and (cast(:receivedFrom as timestamp) is null or m.receivedTimestamp >= :receivedFrom) "
+            + "and (cast(:receivedTo as timestamp) is null or m.receivedTimestamp <= :receivedTo)")
     Page<MessageSummary> findSummaries(@Param("subjectText") String subjectText,
             @Param("fromText") String fromText,
             @Param("toText") String toText,
