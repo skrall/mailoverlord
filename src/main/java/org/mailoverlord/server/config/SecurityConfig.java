@@ -78,6 +78,12 @@ import tools.jackson.databind.json.JsonMapper;
  * sharing the one {@code spring.security.user.password}. Under {@code oidc}, roles come from the
  * configured or {@code operator-groups} in the {@code roles-claim}. Roles split read from
  * mutation in all three modes: OPERATOR may release and delete, VIEWER may only read.
+ *
+ * <p>Actuator (see #72) follows that role split on its own loopback-only management port:
+ * {@code health}, {@code info} and {@code metrics} are open so a Docker profile or the host can
+ * probe them without a credential, while the rest of the management plane ({@code env},
+ * {@code configprops}, {@code heapdump}, {@code loggers}, ...) is OPERATOR-only. {@code shutdown}
+ * stays disabled by the actuator default regardless of the role split.
  */
 @Configuration
 @EnableWebSecurity
@@ -167,6 +173,13 @@ public class SecurityConfig {
                             // The OpenAPI contract is a description of the API, not the data it
                             // guards, and the UI build regenerates its types from it.
                             .requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll()
+                            // The health, info and metrics endpoints are meant to be probed without
+                            // credentials: the Docker profiles and an operator's host-side browser
+                            // both read them. Everything else on the management plane exposes
+                            // internals, so it is an OPERATOR privilege like release and delete.
+                            .requestMatchers("/actuator/health", "/actuator/info",
+                                    "/actuator/metrics", "/actuator/metrics/**").permitAll()
+                            .requestMatchers("/actuator/**").hasRole("OPERATOR")
                             .anyRequest().authenticated());
         }
         return http.build();
@@ -197,6 +210,9 @@ public class SecurityConfig {
                         .accessDeniedHandler(deniedHandler))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/info",
+                                "/actuator/metrics", "/actuator/metrics/**").permitAll()
+                        .requestMatchers("/actuator/**").hasRole("OPERATOR")
                         .anyRequest().authenticated());
         return http.build();
     }
@@ -272,6 +288,9 @@ public class SecurityConfig {
                         .accessDeniedHandler(deniedHandler))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/info",
+                                "/actuator/metrics", "/actuator/metrics/**").permitAll()
+                        .requestMatchers("/actuator/**").hasRole("OPERATOR")
                         .anyRequest().authenticated());
         return http.build();
     }
@@ -298,6 +317,9 @@ public class SecurityConfig {
                         .accessDeniedHandler(deniedHandler))
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers("/v3/api-docs", "/v3/api-docs/**").permitAll()
+                        .requestMatchers("/actuator/health", "/actuator/info",
+                                "/actuator/metrics", "/actuator/metrics/**").permitAll()
+                        .requestMatchers("/actuator/**").hasRole("OPERATOR")
                         .anyRequest().authenticated());
         return http.build();
     }

@@ -186,4 +186,31 @@ public class TrustedHeaderSecurityConfigTest {
         mockMvc.perform(get("/v3/api-docs").remoteAddress(OUTSIDER))
                 .andExpect(status().isNotFound());
     }
+
+    @Test
+    void actuatorHealth_isOpenToAProbeOutsideTheProxyBoundary() throws Exception {
+        // Same permitAll proof as the OpenAPI test: 404 (no endpoint mounted in the slice)
+        // rather than the boundary chain's 401.
+        mockMvc.perform(get("/actuator/health").remoteAddress(OUTSIDER))
+                .andExpect(status().isNotFound())
+                .andExpect(header().doesNotExist("WWW-Authenticate"));
+    }
+
+    @Test
+    void actuatorInternalEndpoints_needAnOperatorFromWithinTheTrustedProxy() throws Exception {
+        // An outsider does not even get to the role check: the boundary answers 401 first, as
+        // for every other path. Inside the proxy, the OPERATOR rule holds like it does under
+        // the other modes.
+        mockMvc.perform(get("/actuator/env").remoteAddress(OUTSIDER))
+                .andExpect(status().isUnauthorized())
+                .andExpect(header().doesNotExist("WWW-Authenticate"));
+        mockMvc.perform(get("/actuator/env").remoteAddress(TRUSTED)
+                        .header("X-Remote-User", "bob")
+                        .header("X-Forwarded-Groups", "developers"))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(get("/actuator/env").remoteAddress(TRUSTED)
+                        .header("X-Remote-User", "bob")
+                        .header("X-Forwarded-Groups", "mailoverlord-operators"))
+                .andExpect(status().isNotFound());
+    }
 }

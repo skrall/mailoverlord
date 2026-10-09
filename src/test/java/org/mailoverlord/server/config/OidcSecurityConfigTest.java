@@ -223,4 +223,28 @@ public class OidcSecurityConfigTest {
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/login?logout"));
     }
+
+    @Test
+    void actuatorHealth_needsNoCredentials() throws Exception {
+        // The slice mounts no actuator endpoints, so a NotFound rather than a redirect is what
+        // proves the request passed the permitAll.
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void actuatorInternalEndpoints_needTheOperatorRole() throws Exception {
+        // An unauthenticated request on a guarded path is redirected toward the provider,
+        // the OIDC chain's ordinary behaviour for anything off /messages/**.
+        mockMvc.perform(get("/actuator/env"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/oauth2/authorization/okta"));
+        mockMvc.perform(get("/actuator/env")
+                        .with(oidcLogin().authorities(new SimpleGrantedAuthority("ROLE_VIEWER"))))
+                .andExpect(status().isForbidden())
+                .andExpect(content().contentTypeCompatibleWith("application/problem+json"));
+        mockMvc.perform(get("/actuator/env")
+                        .with(oidcLogin().authorities(new SimpleGrantedAuthority("ROLE_OPERATOR"))))
+                .andExpect(status().isNotFound());
+    }
 }
