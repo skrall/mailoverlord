@@ -18,6 +18,17 @@ x-app-common: &app-common
     # The actuator management port, published loopback-only like the others: health, metrics
     # and the OPERATOR-guarded endpoints are read from the host at http://127.0.0.1:8090.
     - "127.0.0.1:8090:8090"
+  # The image is distroless (no shell, no curl), so the check execs the Paketo health checker
+  # directly. /workspace/health-check comes from the health-checker buildpack (pom.xml); its
+  # THC_* target is set in x-app-env below, because a Docker healthcheck execs outside the CNB
+  # launcher and so does not inherit launcher-provided env. start_period covers the JVM plus
+  # schema setup before the first probe counts.
+  healthcheck:
+    test: ["CMD", "/workspace/health-check"]
+    interval: 5s
+    timeout: 5s
+    retries: 12
+    start_period: 30s
 
 # Shared environment for every app container. MAILOVERLORD_PASSWORD is required because the
 # image's built-in default is a published value; the DB passwords are optional so that running
@@ -33,6 +44,11 @@ x-app-env: &app-env
   SERVER_ADDRESS: "0.0.0.0"
   MAILOVERLORD_SMTP_BIND_ADDRESS: "0.0.0.0"
   MANAGEMENT_SERVER_ADDRESS: "0.0.0.0"
+  # Pointed at the management plane's loopback health endpoint. THC_USE_LOOPBACK_ADDRESS keeps
+  # the probe on 127.0.0.1 rather than whatever "localhost" resolves to in the container.
+  THC_PORT: "8090"
+  THC_PATH: "/actuator/health"
+  THC_USE_LOOPBACK_ADDRESS: "true"
 
 services:
   # ---------------------------------------------------------------- postgres

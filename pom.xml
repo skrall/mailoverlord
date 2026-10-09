@@ -206,6 +206,18 @@
                 <configuration>
                     <image>
                         <!--
+                            The run image is distroless (no shell, no curl/wget), so the
+                            docker-compose healthcheck needs a static binary to exec. The
+                            health-checker buildpack installs tiny-health-checker at
+                            /workspace/health-check. The java meta-buildpack is re-listed
+                            because an explicit <buildpacks> list replaces the builder's
+                            defaults rather than adding to them.
+                        -->
+                        <buildpacks>
+                            <buildpack>urn:cnb:builder:paketo-buildpacks/java</buildpack>
+                            <buildpack>docker.io/paketobuildpacks/health-checker:2.14.0</buildpack>
+                        </buildpacks>
+                        <!--
                             The app defaults to loopback binds, which is right on the host but
                             wrong in a container: the docker-published port must not be limited
                             to the container's loopback or the host can never reach it. The
@@ -223,6 +235,13 @@
                             <BPE_SERVER_ADDRESS>0.0.0.0</BPE_SERVER_ADDRESS>
                             <BPE_MAILOVERLORD_SMTP_BIND_ADDRESS>0.0.0.0</BPE_MAILOVERLORD_SMTP_BIND_ADDRESS>
                             <BPE_MANAGEMENT_SERVER_ADDRESS>0.0.0.0</BPE_MANAGEMENT_SERVER_ADDRESS>
+                            <!--
+                                Build-time only: pull tiny-health-checker into the image. Its
+                                THC_PORT/THC_PATH target lives in docker-compose, not here, because
+                                a Docker healthcheck execs outside the CNB launcher and so would
+                                not see launcher-provided env.
+                            -->
+                            <BP_HEALTH_CHECKER_ENABLED>true</BP_HEALTH_CHECKER_ENABLED>
                         </env>
                     </image>
                 </configuration>
