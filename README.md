@@ -52,354 +52,65 @@ java -jar target/mailoverlord-2.0.0-SNAPSHOT.jar \
   --mailoverlord.smtp.port=2525
 ```
 
+The properties worth knowing about, and the ones that differ from a plain Spring Boot default.
+Everything else is commented in `application.yml`, which is the authoritative list.
+
 | Property | Default | Description |
 | --- | --- | --- |
-| `mailoverlord.smtp.port` | `2025` | Port the embedded SMTP server listens on to collect incoming mail |
-| `mailoverlord.smtp.max-message-size` | `10485760` | Maximum message size in bytes (10 MB) before Mailoverlord refuses it |
-| `spring.mail.host` | `localhost` | Host released messages are sent to |
-| `spring.mail.port` | `25` | Port released messages are sent to |
-| `server.address` | `127.0.0.1` | IP address the web server binds to |
-| `server.port` | `8080` | Web UI and API port |
-| `management.server.port` | `8090` | Port the actuator management plane listens on, separate from the application port |
-| `management.server.address` | `127.0.0.1` | IP address the management plane binds to |
-| `mailoverlord.smtp.bind-address` | `127.0.0.1` | IP address the embedded SMTP server binds to |
-| `mailoverlord.release.allowed-destinations` | empty (unrestricted) | Comma-separated list of glob patterns; if unset, all destinations are allowed |
-| `spring.datasource.url` | `jdbc:h2:mem:mailoverlord;DB_CLOSE_DELAY=-1` | Message store |
-| `mailoverlord.security.mode` | `basic` | Authentication mechanism: `basic` requires HTTP Basic on every request, `oidc` signs browsers in against an identity provider, `header` trusts the identity a reverse proxy asserts, `none` turns authentication off (how the test suite runs) |
-| `mailoverlord.security.operator-users` | empty | Usernames that may also release and delete; they share the password below |
-| `mailoverlord.security.viewer-users` | empty | Usernames that may only read |
-| `mailoverlord.security.roles-claim` | `groups` | OIDC claim that carries group membership (Okta `groups`, Entra ID `roles`) |
-| `mailoverlord.security.operator-groups` | empty | OIDC or trusted-header group names that may release and delete |
-| `mailoverlord.security.header` | empty | Trusted-header mode: HTTP header the proxy sets with the signed-in user's name (`X-Auth-Request-User`, `X-Remote-User`) |
-| `mailoverlord.security.groups-header` | empty | Trusted-header mode: header carrying the user's comma-separated groups; absent, nobody is an OPERATOR |
-| `mailoverlord.security.trusted-proxies` | empty | Trusted-header mode: CIDRs whose connections come from the proxy; required, and a matching header from anywhere else is answered 401 |
-| `spring.security.user.name` | `operator` | The documented sign-in identity, always an OPERATOR |
-| `spring.security.user.password` | `change-me-on-deploy` | The one shared password. Override it with `MAILOVERLORD_PASSWORD`; the generated `spring.security.user.password` also works |
+| `MAILOVERLORD_PASSWORD` | — | The one shared sign-in password. Set this; the built-in default is published |
+| `mailoverlord.security.mode` | `basic` | `basic`, `oidc`, `header` or `none` — see [docs/authentication.md](docs/authentication.md) |
+| `mailoverlord.release.allowed-destinations` | empty (unrestricted) | Glob patterns restricting who mail may be released to; unset means any recipient, and warns at startup |
+| `mailoverlord.smtp.max-message-size` | `10485760` | Bytes (10 MB) before the SMTP server refuses a message |
+| `spring.mail.host` / `spring.mail.port` | `localhost` / `25` | Where released messages are sent |
+| `spring.datasource.url` | `jdbc:h2:mem:mailoverlord;DB_CLOSE_DELAY=-1` | Message store; in-memory, so a restart discards captured mail |
+| `SERVER_ADDRESS` / `MAILOVERLORD_SMTP_BIND_ADDRESS` | `127.0.0.1` | Loopback binds. The Docker image overrides them to `0.0.0.0` |
 
-### Authentication
+Ports: the web UI and API on `8080`, SMTP on `2025`, and the actuator management plane on
+`8090` (loopback only, and separate so a caller who reaches the application port never sees an
+actuator route — see [docs/authentication.md](docs/authentication.md#management-plane-actuator)).
 
-`basic` mode requires HTTP Basic on every request. Sign in once as the documented
-`spring.security.user.*` identity (an OPERATOR, so it can read, release, and delete) or as a
-name added to `operator-users` or `viewer-users`; everyone shares the one
-`spring.security.user.password`. Set `mailoverlord.security.mode=none` only to run with no
-authentication at all.
-
-The actuator management plane (see below) runs on its own loopback-bound port and follows the
-same role split: `health`, `info` and `metrics` are open so a probe and the host can read them
-without credentials, while everything else under `/actuator/**` (`env`, `configprops`,
-`heapdump`, `loggers`, ...) requires an OPERATOR. `shutdown` is not enabled. This holds in every
-mode, including `header`, where the proxy boundary answers 401 before the role check just as it
-does for the API.
-
-Because Basic does not pop its dialog for `fetch`, the UI sends the browser to `/login` when the
-API answers 401, which is what makes the browser ask for credentials; after that it reloads and
-the calls carry the credentials. A VIEWER reaching release or delete is told it is a permission
-problem. `curl --user operator:password ...` works the same way against the API. See #56.
-
-### Management plane (actuator)
-
-Actuator lives on its own port, `8090` by default, bound to `127.0.0.1` like the rest of the
-app — an attacker who reaches the application port never sees an actuator route. From the host:
-
-```bash
-curl http://localhost:8090/actuator/health     # component status, DB and disk checks
-curl http://localhost:8090/actuator/info
-curl http://localhost:8090/actuator/metrics/jvm.memory.used
-curl -u operator:your-password http://localhost:8090/actuator/env    # OPERATOR only
-```
-
-Read access for an operator and the probe is baked in: `health`, `info` and `metrics` need no
-credential (the DB and disk checks are the health details), the rest needs an OPERATOR role, and
-`shutdown` stays off. The Docker image's container healthcheck probes this same endpoint, so the
-compose stack reports `(healthy)` when the app and its database are ready.
-
-### Browser login against a provider (OIDC)
-
-The same jar can sign people in at the browser through Okta or Entra ID instead, with the
-authorization code flow and the vendor difference living in configuration. The SPA never sees a
-token: the provider hands the browser a session cookie, and that cookie is all the API needs.
-Set `mailoverlord.security.mode=oidc`, configure one client registration, and tell the provider
-the redirect URI `{base-url}/login/oauth2/code/{registrationId}`:
-
-```yaml
-spring:
-  security:
-    oauth2:
-      client:
-        registration:
-          okta:                    # or "entra" for Microsoft Entra ID
-            client-id: ...
-            client-secret: ...
-            provider: okta
-        provider:
-          okta:
-            issuer-uri: https://yourdomain.okta.com/oauth2/default
-          # entra:
-          #   issuer-uri: https://login.microsoftonline.com/{tenant-id}/v2.0
-```
-
-`issuer-uri` is the whole vendor difference: Spring reads the provider's
-`/.well-known/openid-configuration` from it and derives every endpoint. For Entra ID, create the
-app registration under *App registrations*, add this redirect URI under *Authentication → Web*,
-and under *App roles* define the operator group you name below so it lands in the `roles` claim
-(Entra's `groups` claim needs admin consent and caps at 150 members; `roles` needs neither).
-
-Which groups may release and delete is decided per deployment. Set the claim the provider uses
-and the group names that carry the OPERATOR role; everyone else who can sign in reads only:
-
-```yaml
-mailoverlord:
-  security:
-    roles-claim: groups           # Okta default; use "roles" for Entra ID
-    operator-groups: [mailoverlord-operators]
-```
-
-The claim is read whether it arrives as an array (`groups: [mailoverlord-operators]`) or as a
-single string, and matched case-insensitively. An authenticated user is always a VIEWER, so
-reads never depend on what the provider chose to put in a claim.
-
-Logout is `POST /logout` with the CSRF token (the `XSRF-TOKEN` cookie echoed back as
-`X-XSRF-TOKEN`, which the UI does for you). This clears the local session but leaves the IdP
-session alive, so signing in again is instant; provider side, OIDC back-channel logout is a
-separate piece of work. The session cookie's `SameSite` default is fine because the UI and API
-share one origin; if they ever move apart, set `server.servlet.session.cookie.same-site` to
-match.
-
-To send released mail back to Mailoverlord itself, set `--spring.mail.port=2025`; the
-released messages are then re-captured and show up in the UI again.
-
-### Trusting a reverse proxy's identity (header)
-
-The same jar can also live behind a reverse proxy that signs people in, with Mailoverlord
-trusting the identity the proxy put on the request. This is the smallest possible thing to sit
-behind something like oauth2-proxy or an nginx `auth_request`: the SPA never sees a token, and
-the app holds no session of its own — the proxy *is* the sign-in page.
-
-Set `mailoverlord.security.mode=header`, name the two headers, and say whose connections should
-be believed:
-
-```yaml
-mailoverlord:
-  security:
-    mode: header
-    header: X-Auth-Request-User        # the signed-in user, set by the proxy
-    groups-header: X-Auth-Request-Groups
-    operator-groups: [mailoverlord-operators]
-    trusted-proxies: [127.0.0.1/32]    # where the proxy connects from
-server:
-  forward-headers-strategy: framework  # parse X-Forwarded-* for the source check
-```
-
-The proxy authenticates and must **overwrite** the identity headers on every request it
-forwards — dropping any identity header a client sent rather than passing it through. oauth2-proxy
-sets `X-Auth-Request-User` and `X-Auth-Request-Groups` itself; with nginx, derive them from the
-sign-in cookie or an `auth_request` endpoint. A client that can reach Mailoverlord's port
-directly must never be able to present a header nobody wrote. Header names are up to you:
-`X-Auth-Request-User`, `X-Forwarded-User`, `X-Remote-User`, `SM_USER` all work, as long as proxy
-and app agree on the spelling.
-
-Three things guard the boundary, and all three are deliberate:
-
-1. **Source allowlist.** The identity header is read only on requests whose connection came from
-   a machine in `trusted-proxies`. A request carrying the same header from any other address is
-   answered 401 whatever it says: the address in the four bytes of the TCP peer is the one thing
-   the client cannot rewrite, so it is what vouches for the header.
-2. **Bind the app to the proxy only.** Keep Mailoverlord on loopback (its default) or a private
-   address behind the proxy. The header is only as trustworthy as the path it arrived on, so the
-   link between proxy and app must not be reachable from the internet.
-3. **Let the framework parse forwarded headers.** With `server.forward-headers-strategy:
-   framework` the app parses `X-Forwarded-For` and friends and uses the *real* connection peer
-   for the allowlist, instead of taking a client-spoofable header on trust.
-
-`trusted-proxies` ships empty, and `mode: header` without both an identity header and an
-allowlist is refused at startup rather than run — a header nobody vouches for would be one line
-of forgery away.
-
-A 401 under `header` mode names no login page for the browser to go to (the proxy owns that), so
-the UI stays put and shows the reason instead of reloading in a loop.
-
-Two limits are chosen, not accidental. The app never sees the proxy's session and cannot tell
-the upstream is gone, so a wrong `trusted-proxies` entry fails closed rather than slow:
-outsiders get 401s and an operator notices the door is closed, not a lingering hint of access.
-And anyone who can reach a trusted proxy can act as whoever the proxy signs in as — compromising
-the edge is compromising Mailoverlord, by design. See #58.
-
-Captured mail is kept in memory by default, so restarting Mailoverlord discards it. To
-keep messages across restarts, point H2 at a file instead:
+Captured mail is kept in memory by default, so restarting Mailoverlord discards it. To keep
+messages across restarts, point H2 at a file:
 
 ```bash
 java -jar target/mailoverlord-2.0.0-SNAPSHOT.jar \
   '--spring.datasource.url=jdbc:h2:file:./data/mailoverlord;DB_CLOSE_ON_EXIT=FALSE'
 ```
 
-Any database Hibernate supports will work, so for longer-lived data it is usually better
-to override the datasource to Postgres or MySQL.
+Any database Hibernate supports will work, so for longer-lived data it is usually better to
+override the datasource to Postgres or MySQL.
+
+### Authentication
+
+`basic` mode (the default) requires HTTP Basic on every request. Sign in as the documented
+`spring.security.user.*` identity — an OPERATOR, so it can read, release and delete — or add
+names to `operator-users` and `viewer-users`; everyone shares one password. Because Basic does
+not pop its dialog for `fetch`, the UI sends the browser to `/login` when the API answers 401,
+which is what makes the browser ask; after that it reloads and the calls carry the credentials.
+
+Two roles apply: **OPERATOR** may read, release and delete; **VIEWER** may only read. The
+management plane follows the same split.
+
+`mode` also selects `oidc` (sign browsers in against Okta or Entra ID), `header` (trust the
+identity a reverse proxy asserts) or `none` (no authentication at all, which is how the test
+suite runs). All four are documented in [docs/authentication.md](docs/authentication.md).
+
+To try OIDC or header mode without a real provider, `docker-compose.yml` ships `oidc` and
+`proxy` profiles that stand them up against a throwaway Dex — see
+[docs/compose.md](docs/compose.md#signing-in-with-docker-compose-oidc-and-header-modes).
 
 ## Docker
 
-Build an OCI image with [Cloud Native Buildpacks](https://buildpacks.io):
+See [docs/compose.md](docs/compose.md) for the image, persisting captured mail in a
+container, the per-engine compose profiles, and the Dex/oauth2-proxy auth profiles.
 
 ```bash
-./mvnw spring-boot:build-image
+./mvnw spring-boot:build-image   # produces mailoverlord:2.0.0-SNAPSHOT
 docker run --rm -p 127.0.0.1:8080:8080 -p 127.0.0.1:2025:2025 mailoverlord:2.0.0-SNAPSHOT
 ```
 
-The application defaults to loopback binds on the host, and the image overrides them to
-`0.0.0.0` via `SERVER_ADDRESS` and `MAILOVERLORD_SMTP_BIND_ADDRESS`: a container that only
-listens on its own loopback cannot be reached through a published port. Loopback-only access
-on the host then comes from the `-p 127.0.0.1:...:...` publishes, which keep the host side
-private; publish without the `127.0.0.1:` prefix to expose the ports to other hosts.
-
-The image has no shell, so `docker exec -it <container> sh` will not work. To inspect the
-JVM directly, override the entrypoint with the buildpack's JRE. The application is an
-exploded layered jar rather than a single file, so it is launched by class name:
-
-```bash
-docker run --rm -p 127.0.0.1:8080:8080 -p 127.0.0.1:2025:2025 \
-  --entrypoint /layers/paketo-buildpacks_bellsoft-liberica/jre/bin/java \
-  mailoverlord:2.0.0-SNAPSHOT \
-  -cp '/workspace/BOOT-INF/classes:/workspace/BOOT-INF/lib/*:/workspace' \
-  org.springframework.boot.loader.launch.JarLauncher
-```
-
-The JRE path is buildpack specific and may change between buildpack versions.
-
-### Persisting captured mail in a container
-
-The in-memory default works in a container, but a file-backed H2 does **not**, and the
-failure is not obvious. The image runs as uid 1002 while `/workspace` is owned by uid 1001,
-so the working directory is not writable, H2 cannot create its `data` directory, and startup
-dies while building the `EntityManagerFactory`:
-
-```
-Error while creating file "/workspace/data"
-```
-
-This looks like a JPA problem but is only a filesystem permission one.
-
-A named volume does not fix it either — Docker creates the volume root-owned, so the app
-still gets `AccessDeniedException: /data/mailoverlord.mv.db`. Run the container as root
-and the volume is writable:
-
-```bash
-docker volume create mailoverlord-data
-docker run --rm --user 0 -p 127.0.0.1:8080:8080 -p 127.0.0.1:2025:2025 \
-  -v mailoverlord-data:/data \
-  -e SPRING_DATASOURCE_URL='jdbc:h2:file:/data/mailoverlord;DB_CLOSE_ON_EXIT=FALSE' \
-  mailoverlord:2.0.0-SNAPSHOT
-```
-
-Captured mail then survives container restarts. The alternative, which avoids running as
-root, is to bind-mount a host directory that the image's uid 1002 already owns, or to point
-`SPRING_DATASOURCE_URL` at a real Postgres or MySQL, which is the better choice anyway for
-anything long-lived.
-
-### Databases with Docker Compose
-
-The image bundles JDBC drivers for Postgres, MySQL, MariaDB, Oracle and SQL Server alongside
-the built-in H2, and `docker-compose.yml` offers one profile per engine:
-
-```bash
-./mvnw spring-boot:build-image   # produce the mailoverlord:2.0.0-SNAPSHOT image
-cp .env.example .env             # then set MAILOVERLORD_PASSWORD and a database password
-docker compose --profile postgres up
-```
-
-Each profile starts the database next to the application, waits for the database to report
-healthy, and points the application at it. Only the application's ports are published, and
-only on the host's loopback (`127.0.0.1:8080`, `127.0.0.1:2025`, and the actuator management
-port `127.0.0.1:8090`); the database stays on the compose network. Data lives in a named volume
-per engine, so it survives `down` and `up`; `docker compose --profile <engine> down -v` deletes
-it.
-
-Each application container carries a Docker healthcheck that probes
-`http://127.0.0.1:8090/actuator/health`, so `docker compose ps` reports `(healthy)` once the app
-and its database are up. The image is distroless — no shell, no `curl` — so the probe execs the
-Paketo [tiny-health-checker](https://github.com/dmikusa/tiny-health-checker) binary
-(`/workspace/health-check`) that the `health-checker` buildpack installs at build time (see
-`pom.xml`); its target comes from the `THC_*` variables in `docker-compose.yml`.
-
-Schema updates only add what is missing: a volume that was created before a column type
-change keeps its old DDL. If Hibernate ever grew a column's declared size (the message body
-length was fixed once), recreate the volume with `down -v` rather than expecting an in-place
-alter.
-
-| Profile     | Image                          | JDBC URL / notes                                            |
-|-------------|--------------------------------|-------------------------------------------------------------|
-| `postgres`  | `postgres:17`                  | `jdbc:postgresql://postgres:5432/mailoverlord`              |
-| `mysql`     | `mysql:8.4`                    | `...?allowPublicKeyRetrieval=true&useSSL=false`             |
-| `mariadb`   | `mariadb:11`                   | `jdbc:mariadb://mariadb:3306/mailoverlord`                  |
-| `oracle`    | `gvenzl/oracle-free:23-slim`   | slow first start; large image                               |
-| `mssql`     | `mcr.microsoft.com/mssql/server:2022-latest` | amd64 only                 |
-| `h2`        | — (the app ships H2)           | file-backed H2 on a volume, run as root                     |
-
-Secrets come from `.env`, which is git-ignored; the committed `.env.example` is the
-template. `MAILOVERLORD_PASSWORD` is required by every profile. Each engine's password is
-only needed for its own profile (the database container refuses to start without it), and the
-`h2` profile needs none. SQL Server's password must satisfy its own complexity rules.
-
-A few caveats from the table deserve detail:
-
-- `mssql` is the only amd64-only image here; Apple Silicon runs it under emulation.
-  Its entrypoint creates the `mailoverlord` database on first start (SQL Server has no
-  `CREATE DATABASE IF NOT EXISTS`-style flow from a volume, so the app's
-  `databaseName=mailoverlord` would otherwise fail to connect), and the healthcheck waits
-  for that database rather than just the server. The URL passes
-  `encrypt=false;trustServerCertificate=true` because mssql-jdbc 10+ insists on TLS by
-  default and the internal compose network does not carry certificates.
-- `mysql` passes `allowPublicKeyRetrieval=true&useSSL=false`: connector/J 8+ needs that
-  flag for `caching_sha2_password` over the compose network's non-TLS socket.
-- `h2` runs the exact same file-backed setup as the section above (root, named volume), so
-  it shares that caveat.
-
-### Signing in with Docker Compose (OIDC and header modes)
-
-The engine profiles above all run the app in its default `basic` mode. Two further profiles
-cover the other two authentication modes against a throwaway [Dex](https://dexidp.io) identity
-provider, and combine with any engine:
-
-```bash
-# mode: oidc — the app itself signs the browser in against Dex
-MAILOVERLORD_SECURITY_MODE=oidc   docker compose --profile postgres --profile oidc up
-
-# mode: header — oauth2-proxy signs the browser in and asserts the identity
-MAILOVERLORD_SECURITY_MODE=header docker compose --profile postgres --profile proxy up
-```
-
-A compose profile selects which services run, not another service's environment, so the mode
-has to be set alongside the profile — in `.env` or on the command line — rather than inferred
-from it. `oidc` starts Dex; `proxy` starts Dex and oauth2-proxy.
-
-Once up:
-
-| Where                                        | URL                        |
-|----------------------------------------------|----------------------------|
-| App, directly                                | `http://localhost:8080`    |
-| App, through oauth2-proxy (only `proxy`)     | http://localhost:4180      |
-| Dex                                           | http://localhost:5556/dex  |
-
-Dex holds two users, both with the password `password`: `operator@example.com`, a member of
-`mailoverlord-operators`, and `viewer@example.com`, who is not. `mailoverlord-operators` is the
-default `operator-groups`, so the operator can release and delete while the viewer can only
-read — sign in as the viewer first, then the operator, to see the difference.
-
-In `oidc` mode the app is the OIDC client. The browser is sent to Dex at the published
-`localhost:5556`, while the app redeems the code and reads the keys over the compose network at
-`dex:5556`. Because those two addresses differ, the registration names its endpoints explicitly
-instead of using `issuer-uri` discovery; nothing is fetched at startup, so the same variables
-sit harmlessly in the other profiles.
-
-In `proxy` mode oauth2-proxy is the OIDC client and the app runs in `mode: header`. The proxy
-holds a fixed address on a dedicated `authnet` network and overwrites `X-Forwarded-User` and
-`X-Forwarded-Groups` on the requests it forwards, and the app believes those headers only from
-that one address. Reaching http://localhost:8080 directly still gets a 401 — the headers are
-ignored because the connection did not come from the proxy — which is the boundary working, not
-a fault. Go through http://localhost:4180 instead.
-
-This is a local-development setup: Dex is in-memory, its users and the oauth2-proxy cookie
-secret are the values in `docker-compose.yml`, and every port is published on the loopback
-only. For a real provider, follow the "Browser login against a provider" (OIDC) or "Trusting a
-reverse proxy's identity" (header) section above.
+The application defaults to loopback binds and the image overrides them to `0.0.0.0`, so keep
+the `127.0.0.1:` prefix on the publishes to stay private to the host.
 
 ## Native image
 
@@ -435,89 +146,45 @@ the build fails with `native-image is not installed in your JAVA_HOME`.
 
 ## Web UI
 
-The UI is a Vue 3 and TypeScript single-page app in [`ui/`](ui). It is built by Vite into
-the application jar, so the same process serves the UI and the API and the browser only
-ever talks to one origin. There is no CORS configuration, and no second container to run.
+The UI is a Vue 3 and TypeScript single-page app in [`ui/`](ui), built by Vite into the
+application jar, so one process serves the UI and the API and the browser only ever talks to
+one origin. Captured mail appears without a reload: the list refreshes every ten seconds.
 
-* `/` shows captured messages newest first, 25 to a page, sortable by received time, sender,
-  recipient and subject. Select rows to release or delete them, click one to read it in the
-  side panel, and page with the standard Spring Data parameters. The list refreshes every
-  ten seconds, so captured mail appears without a manual reload.
-* The list endpoint returns summaries only, never message bodies, so a page of large
-  messages stays small. Opening a message fetches its body on demand.
-* The UI follows the browser's colour scheme preference, with no toggle. Every colour is a
-  custom property in [`ui/src/style.css`](ui/src/style.css), and the dark values are in a
-  `prefers-color-scheme: dark` block beside the light ones.
-
-## Working on the UI
-
-```bash
-cd ui
-npm install
-npm run dev
-```
-
-The dev server runs on port 5173 and proxies `/messages` and `/v3` to the application on
-port 8080, so start Mailoverlord separately with `./mvnw spring-boot:run` and the browser
-still sees a single origin. CSS and component changes reload without rebuilding the jar or
-the native image.
-
-`-Dskip.ui=true` builds the Java side without rebuilding the UI, which is useful when only
-backend code changed.
-
-```bash
-npm test
-```
-
-runs the Vitest suite, which is also part of `./mvnw verify`. The spec files are typechecked
-along with the rest of the UI by `npm run build`.
-
-### Generated API types
-
-The TypeScript types come from the OpenAPI document that
-[springdoc](https://springdoc.org/) publishes at `/v3/api-docs`, via
-[openapi-typescript](https://openapi-ts.dev/). After changing a request or response type on
-the server, regenerate them:
-
-```bash
-cd ui
-npm run generate:spec   # writes openapi.json, starting the app if it is not running
-npm run generate:types  # writes src/api/schema.d.ts
-```
-
-Both files are committed, and CI regenerates them and fails if they differ, so the types
-cannot silently fall behind the API.
+See [docs/ui.md](docs/ui.md) for the feature tour, the dev server, the Vitest suite, and how
+the generated API types stay in step with the OpenAPI document.
 
 ## API
 
-* `GET /messages/list` — one page of message summaries. Returns a `PageResponse` with
-  `content`, `number`, `size`, `totalElements`, `totalPages`, `first` and `last`. Accepts
-  the standard Spring Data paging and sorting parameters, e.g. `?size=50&page=2` (0-based)
-  or `?sort=from,asc`. Defaults to 25 per page, newest first.
-* `GET /messages/{id}` — one message in full, including its `body`. Returns 404 if no
-  message has that id.
-* `POST /messages/delete` — delete messages, body `{"messageIds": [1, 2]}`.
-* `POST /messages/release` — release messages. All fields are optional; with only
-  `messageIds` the original addresses are used.
+Five endpoints; the UI's TypeScript types are generated from the OpenAPI document at
+`/v3/api-docs`.
+
+* `GET /messages/list` — one page of message summaries. Accepts the standard Spring Data
+  paging and sorting parameters (`?size=50&page=2`, `?sort=from,asc`) and optional
+  `subject`, `from`, `to`, `receivedFrom` and `receivedTo` filters, combined with AND as
+  case-insensitive substring matches. Defaults to 25 per page, newest first.
+* `GET /messages/{id}` — one message in full, including its body. 404 if no message has
+  that id.
+* `POST /messages/delete` — delete messages, body `{"messageIds": [1, 2]}`. OPERATOR only.
+* `POST /messages/release` — release messages. OPERATOR only. All fields are optional; with
+  only `messageIds` the original addresses are used.
   * `overrideTo` / `overrideToAddresses` — replace the `To` recipients (comma separated).
   * `overrideFrom` / `overrideFromAddress` — replace the `From` address.
-* `GET /v3/api-docs` — the OpenAPI document the UI types are generated from.
+* `GET /v3/api-docs` — the OpenAPI document.
 
-Summaries carry a `subject`, decoded from the RFC 2047 encoding the SMTP server stores, and
-a `sizeBytes`.
+See [docs/api.md](docs/api.md) for the filtering rules, error shapes, the release allowlist
+and the per-id outcome semantics.
 
-The subject is a column rather than a header parsed out of the stored content on each
-request. The database cannot read a header out of a MIME blob, so ordering by subject has to
-become an `ORDER BY`, and it has to happen in SQL rather than in Java after the rows come
-back: a page of messages cannot be sorted by subject otherwise. It is decoded and truncated
-once, when the message is captured.
+## Documentation
 
-`sizeBytes` is the length of the stored content, so listing a page still loads each row's
-blob even though nothing else in a summary needs it.
+The README is the quickstart and the configuration reference. Longer topics live in
+[`docs/`](docs/README.md), versioned alongside the code so they cannot drift:
 
-Releasing mail that Mailoverlord cannot reach returns HTTP 200 with
-`{"successful": false, "errorMessage": "..."}` and leaves the messages captured, so you
-can fix the target and try again.
+| Page | Covers |
+| --- | --- |
+| [authentication.md](docs/authentication.md) | The four auth modes, the OPERATOR/VIEWER split, the management plane |
+| [compose.md](docs/compose.md) | The image, container persistence, the per-engine profiles, the Dex/oauth2-proxy profiles |
+| [api.md](docs/api.md) | Endpoints, filtering, paging, error shapes, release semantics, the allowlist |
+| [ui.md](docs/ui.md) | The Vue SPA: dev server, tests, generated types, Node version |
 
 ## Notes on this version
 
@@ -538,10 +205,17 @@ can fix the target and try again.
 ```
 
 Tests bind the SMTP port for real, so they cannot run two at a time or while the packaged
-application is already running. By default both the web API and SMTP server bind only to
-`127.0.0.1` (loopback) for safety; use the properties in the table to expose them to other
-interfaces if needed. The recipient allowlist for `POST /messages/release` is disabled by
-default (unrestricted) but warns at startup when unset.
+application is already running. If something is already listening on 2025, run the suite on
+another port:
+
+```bash
+./mvnw -B verify -Dmailoverlord.smtp.port=2026 -Dspring.mail.port=2026
+```
+
+By default both the web API and SMTP server bind only to `127.0.0.1` (loopback) for safety;
+use the properties in the table to expose them to other interfaces if needed. The recipient
+allowlist for `POST /messages/release` is disabled by default (unrestricted) but warns at
+startup when unset.
 
 The UI has its own Vitest suite, which `./mvnw verify` runs as part of the build. To run it
 on its own:
