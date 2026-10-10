@@ -104,6 +104,18 @@ mailoverlord:
   #   groups-header: X-Auth-Request-Groups
   #   trusted-proxies: [127.0.0.1/32]
 
+  # How much captured mail is kept. max-messages is the newest N to keep; the default of -1
+  # keeps everything, because this is a mail debugger and silently discarding mail would be a
+  # worse surprise than the memory pressure a cap avoids. Set a cap on an instance that sits in
+  # a test environment receiving mail all day: the default store is in-memory, DATA is a BLOB
+  # with nowhere to spill, and an unbounded instance eventually dies of OutOfMemoryError rather
+  # than of anything the application does wrong. The sweep discards the oldest overflow every
+  # sweep-interval and logs a warning naming how many it dropped, so a message that vanished is
+  # explainable rather than a mystery.
+  retention:
+    max-messages: -1
+    sweep-interval: 5m
+
 # OIDC client registration, for mode: oidc. The provider endpoints are read from
 # issuer-uri, so Okta and Entra ID differ only by these lines. See the README's
 # "Browser login against a provider (OIDC)" section.
