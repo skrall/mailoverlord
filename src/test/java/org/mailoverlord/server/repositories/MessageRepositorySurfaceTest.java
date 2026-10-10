@@ -41,11 +41,38 @@ class MessageRepositorySurfaceTest {
     }
 
     /**
-     * Hand-written methods are fine: {@code findSummaries} is one, and it projects rather than
-     * hydrating entities, which is the property that matters on a request path.
+     * Hand-written methods are fine, and this is the closed list of them:
+     * {@code findSummaries} is the request-path listing query and projects rather than hydrating
+     * entities; {@code findIdsNewestFirst} and {@code count} back the retention sweep and select
+     * ids, so discarding the overflow never loads the blobs it is throwing away.
+     *
+     * <p>The set is exact rather than a minimum. Every method named here is one someone reasoned
+     * about, and a new one arriving by default would carry no reasoning at all — which is the
+     * failure {@code findByFrom} was, in a form that a {@code contains} would have let through.
+     * Adding a query means adding it here and saying why it belongs.
      */
     @Test
     void keepsTheListingQuery() {
-        assertThat(declaredMethods()).containsExactly("findSummaries");
+        assertThat(declaredMethods()).containsExactlyInAnyOrder(
+                "findSummaries",
+                "findIdsNewestFirst",
+                "count");
+    }
+
+    /**
+     * The sweep's own query must not hydrate messages. It selects ids alone, and the rows it
+     * returns are the ones about to be deleted — the bodies would be loaded from disk into the
+     * heap purely to be discarded, which is the opposite of what a retention cap is for.
+     */
+    @Test
+    void retentionReadsIdsRatherThanMessages() {
+        Method retentionQuery = Arrays.stream(MessageRepository.class.getDeclaredMethods())
+                .filter(method -> method.getName().equals("findIdsNewestFirst"))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(retentionQuery.getReturnType())
+                .as("the retention query must return ids, not entities")
+                .isEqualTo(List.class);
     }
 }

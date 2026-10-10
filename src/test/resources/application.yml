@@ -34,3 +34,15 @@ mailoverlord:
     # The shared context runs every security mode off: the filter chain this selects
     # reproduces the pre-security behaviour, so nothing in the existing suite changes.
     mode: none
+
+  retention:
+    # Stated rather than left to the built-in default, and deliberately so: the retention tests
+    # exercise a cap, and a cap in this property would put a scheduled sweep into the shared
+    # context where it could delete another test's mail mid-assertion. They build a capped
+    # service directly instead, which touches no context at all.
+    #
+    # This is also why no retention test may use @TestPropertySource. The embedded SMTP server
+    # binds a fixed port at startup, so a second context would fight the first for it and both
+    # would share jdbc:h2:mem:overlord — two contexts interleaving deleteAll against each
+    # other's rows, which fails as data vanishing mid-test rather than as anything obvious.
+    max-messages: -1

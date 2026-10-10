@@ -61,6 +61,8 @@ Everything else is commented in `application.yml`, which is the authoritative li
 | `mailoverlord.security.mode` | `basic` | `basic`, `oidc`, `header` or `none` — see [docs/authentication.md](docs/authentication.md) |
 | `mailoverlord.release.allowed-destinations` | empty (unrestricted) | Glob patterns restricting who mail may be released to; unset means any recipient, and warns at startup |
 | `mailoverlord.smtp.max-message-size` | `10485760` | Bytes (10 MB) before the SMTP server refuses a message |
+| `mailoverlord.retention.max-messages` | `-1` (keep everything) | Newest N messages to keep; older ones are discarded every sweep interval |
+| `mailoverlord.retention.sweep-interval` | `5m` | How often the retention sweep runs |
 | `spring.mail.host` / `spring.mail.port` | `localhost` / `25` | Where released messages are sent |
 | `spring.datasource.url` | `jdbc:h2:mem:mailoverlord;DB_CLOSE_DELAY=-1` | Message store; in-memory, so a restart discards captured mail |
 | `SERVER_ADDRESS` / `MAILOVERLORD_SMTP_BIND_ADDRESS` | `127.0.0.1` | Loopback binds. The Docker image overrides them to `0.0.0.0` |
@@ -79,6 +81,27 @@ java -jar target/mailoverlord-2.0.0-SNAPSHOT.jar \
 
 Any database Hibernate supports will work, so for longer-lived data it is usually better to
 override the datasource to Postgres or MySQL.
+
+## Retention
+
+Nothing bounds how much mail is kept by default, and that is deliberate — this is a mail
+debugger, and silently discarding mail would be a worse surprise than the memory pressure a cap
+avoids. But the default store is in-memory and `DATA` is a BLOB with nowhere to spill, so an
+instance left running in a test environment receiving mail all day will eventually die of
+`OutOfMemoryError`.
+
+Set a cap and the oldest overflow is discarded every `sweep-interval`:
+
+```bash
+java -jar target/mailoverlord-2.0.0-SNAPSHOT.jar \
+  --mailoverlord.retention.max-messages=5000 \
+  --mailoverlord.retention.sweep-interval=5m
+```
+
+The cap is a count of messages, not of bytes: you know how many you will find, and
+`max-message-size` already bounds any single one. Each sweep discards a batch and logs a warning
+naming how many it dropped, so a message that fell off the end is explainable rather than a
+mystery. See #7.
 
 ### Authentication
 

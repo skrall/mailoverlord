@@ -1,6 +1,7 @@
 package org.mailoverlord.server.repositories;
 
 import java.time.Instant;
+import java.util.List;
 
 import org.mailoverlord.server.entities.Message;
 import org.mailoverlord.server.model.MessageFilter;
@@ -89,4 +90,43 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
             @Param("receivedFrom") Instant receivedFrom,
             @Param("receivedTo") Instant receivedTo,
             Pageable pageable);
+
+    /**
+     * The ids of the newest messages, newest first.
+     *
+     * <p>This is the read half of retention, and it selects ids alone: the rows being discarded
+     * are exactly the ones whose bodies nobody will look at, so loading each of their BLOBs to
+     * throw them away would defeat the point of bounding memory. The delete that follows works
+     * from these ids for the same reason {@link #findSummaries} projects.
+     *
+     * <p>Newest first is what makes a cap a slice rather than an offset. The caller drops the
+     * head of the list to spare the newest {@code keep}, and everything past it is what falls off
+     * the end. Returning oldest-first would invert that silently: dropping the head would spare
+     * the oldest mail and evict the newest, which for a tool whose job is "keep this specific
+     * email" is the worst possible direction to get it backwards in.
+     *
+     * <p>That is also why the cap is not expressed as a {@code Pageable} offset. {@code Pageable}
+     * spells an offset only as {@code page * size}, so there is no way to say "skip exactly 3"
+     * without multiplying, and {@code PageRequest.of(3, 500)} asks to skip 1500 rows — which
+     * discards the newest mail the moment the cap exceeds one.
+     *
+     * <p>The order is {@code receivedTimestamp} then {@code id} so that messages arriving in the
+     * same millisecond keep a fixed order between runs. Without the id, which rows land past the
+     * head is not deterministic, and eviction could drop a different message on every sweep for
+     * the same stored data. The same two-key ordering is what the table's sort allowlist falls
+     * back to, for the same reason.
+     *
+     * @param pageable the page to read; the sweep asks for the newest, capped by its batch size
+     */
+    @Query("select m.id from Message m order by m.receivedTimestamp desc, m.id desc")
+    List<Long> findIdsNewestFirst(Pageable pageable);
+
+    /**
+     * How many messages are stored, for the sweep's log line.
+     *
+     * <p>A {@code count()} over the whole table rather than the size of the page the query above
+     * returned: whether anything was dropped is worth stating exactly, and a count reads a
+     * single row rather than hydrating anything.
+     */
+    long count();
 }
