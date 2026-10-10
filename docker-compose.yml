@@ -9,6 +9,15 @@
 # the database stays on the compose network and is never reachable from outside. The
 # management port 8090 carries the actuator endpoints (see #72), so it is published the same
 # loopback-only way: reachable from the host, from nowhere else.
+#
+# Two more profiles exercise the app's non-default authentication modes against a throwaway
+# Dex identity provider: `oidc` runs the app in mode: oidc against Dex, and `proxy` adds an
+# oauth2-proxy in mode: header. Either combines with any engine profile. Compose profiles
+# choose which services run, not another service's environment, so the app's mode is a
+# variable; set it in .env or on the command line:
+#
+#   MAILOVERLORD_SECURITY_MODE=oidc   docker compose --profile h2 --profile oidc up
+#   MAILOVERLORD_SECURITY_MODE=header docker compose --profile h2 --profile proxy up
 
 x-app-common: &app-common
   image: ${MAILOVERLORD_IMAGE:-mailoverlord:2.0.0-SNAPSHOT}
@@ -49,6 +58,22 @@ x-app-env: &app-env
   THC_PORT: "8090"
   THC_PATH: "/actuator/health"
   THC_USE_LOOPBACK_ADDRESS: "true"
+  #
+  # Authentication. The engine profiles leave MODE at the basic default and never read the
+  # rest; the oidc and proxy profiles flip the mode and use these values, so the same app
+  # services serve all three modes. See the README's authentication sections.
+  MAILOVERLORD_SECURITY_MODE: ${MAILOVERLORD_SECURITY_MODE:-basic}
+  MAILOVERLORD_SECURITY_ROLES_CLAIM: ${MAILOVERLORD_SECURITY_ROLES_CLAIM:-groups}
+  MAILOVERLORD_SECURITY_OPERATOR_GROUPS: ${MAILOVERLORD_SECURITY_OPERATOR_GROUPS:-mailoverlord-operators}
+  # Header mode. oauth2-proxy puts X-Forwarded-User and X-Forwarded-Groups on the requests it
+  # forwards (these are request headers in proxy mode; the X-Auth-Request-* pair is response
+  # only), and the app believes them only from the proxy's fixed address on authnet below.
+  MAILOVERLORD_SECURITY_HEADER: ${MAILOVERLORD_SECURITY_HEADER:-X-Forwarded-User}
+  MAILOVERLORD_SECURITY_GROUPS_HEADER: ${MAILOVERLORD_SECURITY_GROUPS_HEADER:-X-Forwarded-Groups}
+  MAILOVERLORD_SECURITY_TRUSTED_PROXIES: ${MAILOVERLORD_SECURITY_TRUSTED_PROXIES:-172.31.240.20/32}
+  # issuer; the container talks to the same dex by service name for token, keys and userinfo.
+  # issuer-uri is deliberately absent, so nothing is fetched (or required to be up) at startup,
+  # which is what lets basic and header runs carry this config inertly.
 
 services:
   # ---------------------------------------------------------------- postgres
@@ -81,6 +106,24 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/mailoverlord
       SPRING_DATASOURCE_USERNAME: mailoverlord
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-}
+    # The auth pieces live on authnet; the alias there is what oauth2-proxy's upstream names,
+    # so it does not change with the engine. See the network at the foot of this file.
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_CLIENT_ID: mailoverlord
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_CLIENT_SECRET: mailoverlord-dex-secret
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_PROVIDER: dex
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_AUTHORIZATION_GRANT_TYPE: authorization_code
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_REDIRECT_URI: http://localhost:8080/login/oauth2/code/dex
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_SCOPE: openid,profile,email,groups
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_DEX_AUTHORIZATION_URI: http://localhost:5556/dex/auth
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_DEX_TOKEN_URI: http://dex:5556/dex/token
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_DEX_JWK_SET_URI: http://dex:5556/dex/keys
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_DEX_USER_INFO_URI: http://dex:5556/dex/userinfo
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_DEX_USER_NAME_ATTRIBUTE: preferred_username
+
+    networks:
+      default:
+      authnet:
+        aliases: [mailoverlord]
 
   # ------------------------------------------------------------------- mysql
   mysql:
@@ -145,6 +188,22 @@ services:
       SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.mariadb.jdbc.Driver
       SPRING_DATASOURCE_USERNAME: mailoverlord
       SPRING_DATASOURCE_PASSWORD: ${MARIADB_PASSWORD:-}
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_CLIENT_ID: mailoverlord
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_CLIENT_SECRET: mailoverlord-dex-secret
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_PROVIDER: dex
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_AUTHORIZATION_GRANT_TYPE: authorization_code
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_REDIRECT_URI: http://localhost:8080/login/oauth2/code/dex
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_SCOPE: openid,profile,email,groups
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_DEX_AUTHORIZATION_URI: http://localhost:5556/dex/auth
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_DEX_TOKEN_URI: http://dex:5556/dex/token
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_DEX_JWK_SET_URI: http://dex:5556/dex/keys
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_DEX_USER_INFO_URI: http://dex:5556/dex/userinfo
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_DEX_USER_NAME_ATTRIBUTE: preferred_username
+
+    networks:
+      default:
+      authnet:
+        aliases: [mailoverlord]
 
   # ------------------------------------------------------------------ oracle
   oracle:
@@ -177,6 +236,22 @@ services:
       SPRING_DATASOURCE_DRIVER_CLASS_NAME: oracle.jdbc.OracleDriver
       SPRING_DATASOURCE_USERNAME: mailoverlord
       SPRING_DATASOURCE_PASSWORD: ${ORACLE_PASSWORD:-}
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_CLIENT_ID: mailoverlord
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_CLIENT_SECRET: mailoverlord-dex-secret
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_PROVIDER: dex
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_AUTHORIZATION_GRANT_TYPE: authorization_code
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_REDIRECT_URI: http://localhost:8080/login/oauth2/code/dex
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_SCOPE: openid,profile,email,groups
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_DEX_AUTHORIZATION_URI: http://localhost:5556/dex/auth
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_DEX_TOKEN_URI: http://dex:5556/dex/token
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_DEX_JWK_SET_URI: http://dex:5556/dex/keys
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_DEX_USER_INFO_URI: http://dex:5556/dex/userinfo
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_DEX_USER_NAME_ATTRIBUTE: preferred_username
+
+    networks:
+      default:
+      authnet:
+        aliases: [mailoverlord]
 
   # ------------------------------------------------------------------- mssql
   mssql:
@@ -228,6 +303,22 @@ services:
       SPRING_DATASOURCE_DRIVER_CLASS_NAME: com.microsoft.sqlserver.jdbc.SQLServerDriver
       SPRING_DATASOURCE_USERNAME: sa
       SPRING_DATASOURCE_PASSWORD: ${MSSQL_SA_PASSWORD:-}
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_CLIENT_ID: mailoverlord
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_CLIENT_SECRET: mailoverlord-dex-secret
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_PROVIDER: dex
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_AUTHORIZATION_GRANT_TYPE: authorization_code
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_REDIRECT_URI: http://localhost:8080/login/oauth2/code/dex
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_SCOPE: openid,profile,email,groups
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_DEX_AUTHORIZATION_URI: http://localhost:5556/dex/auth
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_DEX_TOKEN_URI: http://dex:5556/dex/token
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_DEX_JWK_SET_URI: http://dex:5556/dex/keys
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_DEX_USER_INFO_URI: http://dex:5556/dex/userinfo
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_DEX_USER_NAME_ATTRIBUTE: preferred_username
+
+    networks:
+      default:
+      authnet:
+        aliases: [mailoverlord]
 
   # ---------------------------------------------------------------------- h2
   # The app image already ships H2, so this profile has no database container: it is the app
@@ -245,6 +336,75 @@ services:
       SPRING_DATASOURCE_URL: "jdbc:h2:file:/data/mailoverlord;DB_CLOSE_ON_EXIT=FALSE"
       SPRING_DATASOURCE_USERNAME: sa
       SPRING_DATASOURCE_PASSWORD: ""
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_CLIENT_ID: mailoverlord
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_CLIENT_SECRET: mailoverlord-dex-secret
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_PROVIDER: dex
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_AUTHORIZATION_GRANT_TYPE: authorization_code
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_REDIRECT_URI: http://localhost:8080/login/oauth2/code/dex
+      SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_DEX_SCOPE: openid,profile,email,groups
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_DEX_AUTHORIZATION_URI: http://localhost:5556/dex/auth
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_DEX_TOKEN_URI: http://dex:5556/dex/token
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_DEX_JWK_SET_URI: http://dex:5556/dex/keys
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_DEX_USER_INFO_URI: http://dex:5556/dex/userinfo
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_DEX_USER_NAME_ATTRIBUTE: preferred_username
+
+    networks:
+      default:
+      authnet:
+        aliases: [mailoverlord]
+
+  # -------------------------------------------------------- identity provider
+  # Dex stands in for Okta or Entra in the oidc and proxy profiles. It sits on authnet only:
+  # the app and oauth2-proxy reach it by service name, while the browser reaches it through
+  # the published loopback port. The config is docker/dex/config.yaml.
+  dex:
+    profiles: [oidc, proxy]
+    image: ghcr.io/dexidp/dex:v2.46.0
+    command: ["dex", "serve", "/etc/dex/config.yaml"]
+    volumes:
+      - ./docker/dex/config.yaml:/etc/dex/config.yaml:ro
+    ports:
+      - "127.0.0.1:5556:5556"
+    networks:
+      - authnet
+
+  # ------------------------------------------------------------------ reverse proxy
+  # The edge of the proxy profile: oauth2-proxy signs the browser in against Dex and forwards
+  # the request to the app with X-Forwarded-User/-Groups overwritten from the session. It holds
+  # a fixed address on authnet so the app's trusted-proxies can name exactly this /32 — a
+  # request that reaches the app's published port from anywhere else is answered 401. The
+  # explicit endpoints replace discovery because Dex advertises the host-facing issuer, which
+  # a container could not redeem a code against; backchannels use the service name instead.
+  oauth2-proxy:
+    profiles: [proxy]
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5
+    command:
+      - --provider=oidc
+      - --skip-oidc-discovery=true
+      - --oidc-issuer-url=http://localhost:5556/dex
+      - --insecure-oidc-skip-issuer-verification=true
+      - --login-url=http://localhost:5556/dex/auth
+      - --redeem-url=http://dex:5556/dex/token
+      - --oidc-jwks-url=http://dex:5556/dex/keys
+      - --client-id=mailoverlord
+      - --client-secret=mailoverlord-dex-secret
+      - --scope=openid email groups
+      - --oidc-groups-claim=groups
+      - --email-domain=*
+      - --redirect-url=http://localhost:4180/oauth2/callback
+      - --cookie-secret=${OAUTH2_PROXY_COOKIE_SECRET:-3Y7bdRKsi7hCNAKS7Nuzw0-GaTfTvd_9L97K9Qi8DCI=}
+      - --cookie-secure=false
+      - --cookie-samesite=lax
+      - --http-address=0.0.0.0:4180
+      - --skip-provider-button=true
+      - --upstream=http://mailoverlord:8080
+    ports:
+      - "127.0.0.1:4180:4180"
+    depends_on:
+      - dex
+    networks:
+      authnet:
+        ipv4_address: 172.31.240.20
 
 volumes:
   mailoverlord-postgres:
@@ -253,3 +413,13 @@ volumes:
   mailoverlord-oracle:
   mailoverlord-mssql:
   mailoverlord-h2:
+
+networks:
+  # A dedicated network for the auth pieces. oauth2-proxy needs a fixed address so the app's
+  # trusted-proxies can name a stable /32, which the default network's dynamic addresses
+  # cannot give. The app joins this and the default network (the databases stay on default)
+  # and carries the `mailoverlord` alias here for the proxy to resolve.
+  authnet:
+    ipam:
+      config:
+        - subnet: 172.31.240.0/24

@@ -1,0 +1,52 @@
+# A throwaway identity provider for the compose `oidc` and `proxy` profiles. In-memory
+# storage means every restart forgets what it knew; the two users below are the whole
+# directory. Published on the host's loopback only (127.0.0.1:5556), never a production
+# identity provider.
+#
+# The issuer is the host-facing URL because that is what the browser is redirected to.
+# The backchannels the containers use (token, keys, userinfo) go to the compose service
+# name instead; that split is why the profiles configure endpoints explicitly rather than
+# leaning on OIDC discovery. See the README's "Browser login" and "Trusting a reverse
+# proxy" sections.
+issuer: http://localhost:5556/dex
+
+storage:
+  type: memory
+
+web:
+  http: 0.0.0.0:5556
+
+# Two confidential clients. `mailoverlord` is the app's own registration, used by
+# mode: oidc; `oauth2-proxy`'s callback is the same client, since the proxy profile signs
+# in through this same Dex. The redirect URIs are where each browser lands: Spring's
+# callback on the app, and oauth2-proxy's /oauth2/callback on the proxy.
+staticClients:
+  - id: mailoverlord
+    secret: mailoverlord-dex-secret
+    name: Mailoverlord
+    redirectURIs:
+      - http://localhost:8080/login/oauth2/code/dex
+      - http://localhost:4180/oauth2/callback
+
+enablePasswordDB: true
+
+# Both users have the password "password". `operator` is in mailoverlord-operators, which
+# the app's operator-groups maps to ROLE_OPERATOR (read, release, delete); `viewer` is in no
+# such group, so it holds ROLE_VIEWER only. preferredUsername is set so the app can use it
+# as the user-name attribute, and groups is carried because both clients request the groups
+# scope.
+staticPasswords:
+  - email: operator@example.com
+    hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+    username: operator
+    preferredUsername: operator
+    name: Operator
+    emailVerified: true
+    groups:
+      - mailoverlord-operators
+  - email: viewer@example.com
+    hash: "$2a$10$2b2cU8CPhOTaGrs1HRQuAueS7JTT5ZHsHSzYiFPm1leZck7Mc8T4W"
+    username: viewer
+    preferredUsername: viewer
+    name: Viewer
+    emailVerified: true

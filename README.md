@@ -352,6 +352,55 @@ A few caveats from the table deserve detail:
 - `h2` runs the exact same file-backed setup as the section above (root, named volume), so
   it shares that caveat.
 
+### Signing in with Docker Compose (OIDC and header modes)
+
+The engine profiles above all run the app in its default `basic` mode. Two further profiles
+cover the other two authentication modes against a throwaway [Dex](https://dexidp.io) identity
+provider, and combine with any engine:
+
+```bash
+# mode: oidc — the app itself signs the browser in against Dex
+MAILOVERLORD_SECURITY_MODE=oidc   docker compose --profile postgres --profile oidc up
+
+# mode: header — oauth2-proxy signs the browser in and asserts the identity
+MAILOVERLORD_SECURITY_MODE=header docker compose --profile postgres --profile proxy up
+```
+
+A compose profile selects which services run, not another service's environment, so the mode
+has to be set alongside the profile — in `.env` or on the command line — rather than inferred
+from it. `oidc` starts Dex; `proxy` starts Dex and oauth2-proxy.
+
+Once up:
+
+| Where                                        | URL                        |
+|----------------------------------------------|----------------------------|
+| App, directly                                | `http://localhost:8080`    |
+| App, through oauth2-proxy (only `proxy`)     | http://localhost:4180      |
+| Dex                                           | http://localhost:5556/dex  |
+
+Dex holds two users, both with the password `password`: `operator@example.com`, a member of
+`mailoverlord-operators`, and `viewer@example.com`, who is not. `mailoverlord-operators` is the
+default `operator-groups`, so the operator can release and delete while the viewer can only
+read — sign in as the viewer first, then the operator, to see the difference.
+
+In `oidc` mode the app is the OIDC client. The browser is sent to Dex at the published
+`localhost:5556`, while the app redeems the code and reads the keys over the compose network at
+`dex:5556`. Because those two addresses differ, the registration names its endpoints explicitly
+instead of using `issuer-uri` discovery; nothing is fetched at startup, so the same variables
+sit harmlessly in the other profiles.
+
+In `proxy` mode oauth2-proxy is the OIDC client and the app runs in `mode: header`. The proxy
+holds a fixed address on a dedicated `authnet` network and overwrites `X-Forwarded-User` and
+`X-Forwarded-Groups` on the requests it forwards, and the app believes those headers only from
+that one address. Reaching http://localhost:8080 directly still gets a 401 — the headers are
+ignored because the connection did not come from the proxy — which is the boundary working, not
+a fault. Go through http://localhost:4180 instead.
+
+This is a local-development setup: Dex is in-memory, its users and the oauth2-proxy cookie
+secret are the values in `docker-compose.yml`, and every port is published on the loopback
+only. For a real provider, follow the "Browser login against a provider" (OIDC) or "Trusting a
+reverse proxy's identity" (header) section above.
+
 ## Native image
 
 Mailoverlord also builds as a GraalVM native image, which is what the Paketo `native-image`
