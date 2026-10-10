@@ -68,6 +68,40 @@ Both files are committed, and CI regenerates them and fails if they differ, so t
 cannot silently fall behind the API. That check is why a response change is a coordinated
 commit: the server type, `openapi.json` and `schema.d.ts` all move together.
 
+## The favicon
+
+`ui/public/favicon.svg` is the source of truth: an envelope resting in a tray, for mail that has
+arrived and is being held rather than delivered. `ui/public/favicon.ico` is generated from it at
+four sizes (16, 32, 48, 64) and both are committed, since Vite copies `ui/public` verbatim into
+the build rather than bundling it.
+
+To regenerate the `.ico` after changing the SVG, with ImageMagick:
+
+```bash
+cd ui/public
+for size in 64 48 32 16; do
+  magick -background none favicon.svg -resize ${size}x${size} -colors 256 -depth 8 PNG32:t-$size.png
+done
+magick t-64.png t-48.png t-32.png t-16.png favicon.ico
+rm t-*.png
+```
+
+Two things learned by rendering this at actual favicon sizes, worth keeping:
+
+**Filled shapes survive downscaling; strokes do not.** The first attempt drew the envelope as a
+stroke outline, and at 16px the strokes closed up and it read as a filled rectangle — a camera,
+not an envelope. The version that works is filled paths, with the flap as a negative-space
+chevron in the accent colour.
+
+**Detail that only shows at 256px is decoration.** An earlier version put a pause symbol inside
+the envelope to say "held". It was invisible at both 32px and 16px — the two bars merged into
+the white body — so it was dropped rather than shipped. Check any change at 16px before keeping
+it.
+
+Neither icon is served `immutable`: `ui/public` is copied verbatim, so a filename that never
+changes cannot promise a year-long cache, and browsers cache icons for the life of a profile.
+Both are revalidated instead — see the comment in `ResourceCacheConfig`.
+
 ## Node version
 
 The Maven build pins the Node version and downloads it into `ui/node/node`, so Node does not

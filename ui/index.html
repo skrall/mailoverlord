@@ -6,6 +6,12 @@
     <!-- Lets the UA render scrollbars and native controls to match, which the CSS cannot
          reach. Without it the app can be fully dark while its scrollbars stay light. -->
     <meta name="color-scheme" content="light dark" />
+    <!-- An envelope resting in a tray: mail that has arrived and is being held rather than
+         delivered. Referenced explicitly as well as sitting at /favicon.ico, because the
+         implicit probe is not universal. favicon.svg is the source of truth; the .ico is
+         generated from it and both are committed. -->
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>Mailoverlord</title>
   </head>
   <body>

@@ -24,10 +24,11 @@ import org.mailoverlord.server.AbstractMailoverlordIntegrationTest;
  * heuristic runs to roughly five years, so a plain reload keeps serving the previous build. See
  * #45.
  *
- * <p>The two kinds of resource get opposite policies, because the entry document names the
- * current asset hashes and so has to be revalidated, while the hashed assets cannot change under
- * a name the document already refers to. A regression in either half shows up as a stale UI in
- * the browser rather than as a failing request, which is why the headers are pinned here.
+ * <p>Three kinds of resource get different policies, because the entry document names the current
+ * asset hashes and so has to be revalidated, while the hashed assets cannot change under a name
+ * the document already refers to. The favicon is revalidated too, since it is not hashed and so
+ * cannot be immutable. A regression in any of them shows up as a stale UI in the browser rather
+ * than as a failing request, which is why the headers are pinned here.
  */
 class ResourceCacheConfigTest extends AbstractMailoverlordIntegrationTest {
 
@@ -59,10 +60,13 @@ class ResourceCacheConfigTest extends AbstractMailoverlordIntegrationTest {
      * Read from the built document rather than named literally, since the names are content
      * hashes and change with every UI edit. Naming them here made this fail on any change to the
      * UI, which is a test that cries wolf about the very thing it is meant to protect.
+     *
+     * <p>Scoped to {@code /assets/} references: this is the immutable policy, and the entry
+     * document and favicon are deliberately revalidated instead. Both are covered on their own.
      */
     @Test
     void hashedAssetsAreCachedIndefinitely() throws Exception {
-        for (String reference : assetReferences()) {
+        for (String reference : hashedAssetReferences()) {
             mockMvc.perform(get(reference))
                     .andExpect(status().isOk())
                     .andExpect(header().string("Cache-Control", HASHED_ASSET_CACHE_CONTROL));
@@ -79,16 +83,59 @@ class ResourceCacheConfigTest extends AbstractMailoverlordIntegrationTest {
      * {@code immutable} is only safe because Vite content-hashes everything under
      * {@code assets/}. If a build ever emitted a stable filename there, the browser would keep
      * the old file for a year and the change would never reach anyone.
+     *
+     * <p>Scoped to {@code /assets/} references, because that is the only path given the immutable
+     * policy. The entry document and the favicon are revalidated instead, and holding them to
+     * this rule would either fail on them or force them under a policy their contents cannot
+     * justify — {@code everyReferencedResourceIsServedWithACachePolicy} covers their side.
      */
     @Test
     void everyAssetTheDocumentReferencesIsContentHashed() throws IOException {
-        assertThat(assetReferences())
-                .as("references in index.html")
+        assertThat(hashedAssetReferences())
+                .as("references under /assets/ in index.html")
                 .isNotEmpty()
                 .allSatisfy(reference -> assertThat(reference)
                         .as("%s must carry a content hash to be safe to cache for a year",
                                 reference)
                         .matches("^/assets/[^/]+-[\\w-]{8,}\\.(?:js|css)$"));
+    }
+
+    /**
+     * The favicon is served, and is revalidated rather than cached for a year.
+     *
+     * <p>It sits beside the entry document rather than under {@code assets/} because Vite copies
+     * {@code ui/public} verbatim without content-hashing it, so an {@code immutable} header would
+     * be a promise the build cannot keep. Browsers cache icons for the life of a profile, so
+     * without this a replaced icon would never be seen.
+     *
+     * <p>Both forms are checked: the {@code .ico} that older browsers and the implicit
+     * {@code /favicon.ico} probe want, and the {@code .svg} the document references and modern
+     * browsers prefer.
+     */
+    @Test
+    void faviconIsRevalidatedRatherThanCachedForever() throws Exception {
+        for (String icon : List.of("/favicon.ico", "/favicon.svg")) {
+            mockMvc.perform(get(icon))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("Cache-Control", "no-cache"));
+        }
+    }
+
+    /**
+     * Every local resource the entry document names is served with an explicit policy, so none of
+     * them can fall back on the {@code Last-Modified} heuristic that #45 is about.
+     *
+     * <p>The inverse failure to the one above: a reference with no handler of its own is served
+     * by Boot's default handler, which sets no {@code Cache-Control} at all, and the browser then
+     * invents a freshness lifetime of about five years from a timestamp pinned to 1980.
+     */
+    @Test
+    void everyReferencedResourceIsServedWithACachePolicy() throws Exception {
+        for (String reference : assetReferences()) {
+            mockMvc.perform(get(reference))
+                    .andExpect(status().isOk())
+                    .andExpect(header().exists("Cache-Control"));
+        }
     }
 
     /**
@@ -99,6 +146,16 @@ class ResourceCacheConfigTest extends AbstractMailoverlordIntegrationTest {
         List<String> references = new ArrayList<>();
         matcher.results().forEach(result -> references.add(result.group(1)));
         return references;
+    }
+
+    /**
+     * Only the references under {@code /assets/}, which is the only path served immutable and so
+     * the only one whose name has to be a content hash.
+     */
+    private static List<String> hashedAssetReferences() throws IOException {
+        return assetReferences().stream()
+                .filter(reference -> reference.startsWith("/assets/"))
+                .toList();
     }
 
     private static String readIndexHtml() throws IOException {

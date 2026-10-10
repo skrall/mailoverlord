@@ -21,11 +21,13 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
  * still computed from {@code Last-Modified}, so the browser skips the conditional request anyway.
  * Only an explicit policy settles it.
  *
- * <p>The two kinds of resource need opposite treatment. Vite content-hashes the filenames under
- * {@code assets/}, so a change of contents always means a change of name and those responses can
- * be kept indefinitely. The entry document is the exception: it names the current hashes, so it
- * has to be revalidated on every load, or it goes on pointing at assets that the latest build
- * has already deleted.
+ * <p>There are three kinds of resource and they need different treatment. Vite content-hashes the
+ * filenames under {@code assets/}, so a change of contents always means a change of name and
+ * those responses can be kept indefinitely. The entry document is the exception: it names the
+ * current hashes, so it has to be revalidated on every load, or it goes on pointing at assets
+ * that the latest build has already deleted. The favicon is revalidated too, for the opposite
+ * reason — it is not hashed, so it cannot be immutable — and because browsers cache icons for
+ * the life of a profile, which is where a change to one would otherwise go to die.
  *
  * <p>A single {@code spring.web.resources.cache.cachecontrol.*} setting cannot express that split,
  * since it applies to every static resource, which is why these are registered by hand. The
@@ -46,6 +48,20 @@ public class ResourceCacheConfig implements WebMvcConfigurer {
                         .cachePublic()
                         .immutable());
         registry.addResourceHandler("/index.html")
+                .addResourceLocations("classpath:/static/")
+                .setCacheControl(CacheControl.noCache());
+        // The favicon lives beside the entry document rather than under /assets/, because Vite
+        // copies ui/public verbatim and does not content-hash it, so the immutable policy above
+        // would be a lie: a change would never reach anyone holding the old icon. It is
+        // revalidated instead, for the same reason the entry document is. Browsers cache icons
+        // aggressively and some keep one for the life of a profile, so this is the difference
+        // between a new icon appearing and it never doing so.
+        //
+        // Both the .ico and the .svg it is generated from are named: the document references the
+        // svg too, and a reference with no handler of its own falls through to Boot's default and
+        // gets no Cache-Control at all, which is the very problem this configuration exists to
+        // avoid.
+        registry.addResourceHandler("/favicon.ico", "/favicon.svg")
                 .addResourceLocations("classpath:/static/")
                 .setCacheControl(CacheControl.noCache());
     }
