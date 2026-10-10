@@ -376,6 +376,15 @@ services:
       - ./docker/dex/config.yaml:/etc/dex/config.yaml:ro
     ports:
       - "127.0.0.1:5556:5556"
+    # Dex's healthz lives under the issuer path, and the image ships wget but no curl. Nothing
+    # depends on this (the app starts fine without Dex and only fails a login without it), so
+    # it is there for `docker compose ps` and for spotting a Dex that died.
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:5556/dex/healthz >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - authnet
 
