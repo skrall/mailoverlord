@@ -119,7 +119,7 @@ services:
   # ------------------------------------------------------------------- mysql
   mysql:
     profiles: [mysql]
-    image: mysql:8.4
+    image: mysql:26.7
     environment:
       MYSQL_DATABASE: mailoverlord
       MYSQL_USER: mailoverlord
