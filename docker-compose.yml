@@ -76,7 +76,7 @@ services:
       POSTGRES_USER: mailoverlord
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
     volumes:
-      - mailoverlord-postgres:/var/lib/postgresql/data
+      - mailoverlord-postgres:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U mailoverlord -d mailoverlord"]
       interval: 5s
