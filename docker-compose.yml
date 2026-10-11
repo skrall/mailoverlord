@@ -27,17 +27,13 @@ x-app-common: &app-common
     # The actuator management port, published loopback-only like the others: health, metrics
     # and the OPERATOR-guarded endpoints are read from the host at http://127.0.0.1:8090.
     - "127.0.0.1:8090:8090"
-  # The image is distroless (no shell, no curl), so the check execs the Paketo health checker
-  # directly. /workspace/health-check comes from the health-checker buildpack (pom.xml); its
-  # THC_* target is set in x-app-env below, because a Docker healthcheck execs outside the CNB
-  # launcher and so does not inherit launcher-provided env. start_period covers the JVM plus
-  # schema setup before the first probe counts.
-  healthcheck:
-    test: ["CMD", "/workspace/health-check"]
-    interval: 5s
-    timeout: 5s
-    retries: 12
-    start_period: 30s
+  # There is deliberately no healthcheck here. The run image is distroless — no shell, no
+  # curl, no wget — so there is nothing in the container to exec a probe with. Getting one
+  # meant naming an explicit <buildpacks> list for tiny-health-checker, and that list
+  # replaces the builder's own buildpacks rather than adding to them, which then has to be
+  # restated for every other image build (see #74 and the note in pom.xml). Without it,
+  # `docker compose ps` shows the app as running rather than (healthy); the database
+  # containers still report healthy, and `depends_on: service_healthy` still waits on them.
 
 # Shared environment for every app container. MAILOVERLORD_PASSWORD is required because the
 # image's built-in default is a published value; the DB passwords are optional so that running
@@ -53,11 +49,6 @@ x-app-env: &app-env
   SERVER_ADDRESS: "0.0.0.0"
   MAILOVERLORD_SMTP_BIND_ADDRESS: "0.0.0.0"
   MANAGEMENT_SERVER_ADDRESS: "0.0.0.0"
-  # Pointed at the management plane's loopback health endpoint. THC_USE_LOOPBACK_ADDRESS keeps
-  # the probe on 127.0.0.1 rather than whatever "localhost" resolves to in the container.
-  THC_PORT: "8090"
-  THC_PATH: "/actuator/health"
-  THC_USE_LOOPBACK_ADDRESS: "true"
   #
   # Authentication. The engine profiles leave MODE at the basic default and never read the
   # rest; the oidc and proxy profiles flip the mode and use these values, so the same app

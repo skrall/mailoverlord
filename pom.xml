@@ -60,13 +60,6 @@
         <node.version>v24.21.0</node.version>
         <!-- Set to true to build the Java side without rebuilding the UI. -->
         <skip.ui>false</skip.ui>
-        <!--
-            The CNB buildpack that builds the container image, referenced from <image> below
-            rather than written there, so the -Pnative profile can swap it for the native
-            variant without restating the rest of the list. Both come from the same builder,
-            which is why the profile has to change the builder too.
-        -->
-        <image.buildpack>urn:cnb:builder:paketo-buildpacks/java</image.buildpack>
     </properties>
 
     <dependencies>
@@ -211,28 +204,20 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
-                    <image>
-                        <!--
-                            The run image is distroless (no shell, no curl/wget), so the
-                            docker-compose healthcheck needs a static binary to exec. The
-                            health-checker buildpack installs tiny-health-checker at
-                            /workspace/health-check. The java meta-buildpack is re-listed
-                            because an explicit <buildpacks> list replaces the builder's
-                            defaults rather than adding to them.
+                    <!--
+                        Deliberately no <buildpacks> list here. An explicit list replaces the
+                        builder's own buildpacks rather than adding to them, so naming them
+                        means owning the choice of buildpack and builder for every image this
+                        project builds — including the native one, where the java buildpack is
+                        the wrong one and the plugin's default would have to be re-stated.
 
-                            The first entry is a property because the -Pnative profile swaps
-                            it for the native variant, and the whole point of that profile is
-                            that it must not have to restate this list: a buildpack omitted
-                            here is a buildpack missing from the native image too, silently.
-                            tiny-health-checker is the same static binary either way, so the
-                            healthcheck survives the swap rather than being a JVM-only
-                            feature. The builder has to change with it, because java-native
-                            ships in a different builder than the JVM one — see that profile.
-                        -->
-                        <buildpacks>
-                            <buildpack>${image.buildpack}</buildpack>
-                            <buildpack>docker.io/paketobuildpacks/health-checker:2.14.0</buildpack>
-                        </buildpacks>
+                        That trade was made for the health checker, which needed
+                        tiny-health-checker dropped into the distroless run image so the compose
+                        stack could report (healthy). Dropping it restores the plugin's default
+                        and with it `spring-boot:build-image` behaving the way its documentation
+                        describes, at the cost of no container health status. See #74.
+                    -->
+                    <image>
                         <!--
                             The app defaults to loopback binds, which is right on the host but
                             wrong in a container: the docker-published port must not be limited
@@ -251,13 +236,6 @@
                             <BPE_SERVER_ADDRESS>0.0.0.0</BPE_SERVER_ADDRESS>
                             <BPE_MAILOVERLORD_SMTP_BIND_ADDRESS>0.0.0.0</BPE_MAILOVERLORD_SMTP_BIND_ADDRESS>
                             <BPE_MANAGEMENT_SERVER_ADDRESS>0.0.0.0</BPE_MANAGEMENT_SERVER_ADDRESS>
-                            <!--
-                                Build-time only: pull tiny-health-checker into the image. Its
-                                THC_PORT/THC_PATH target lives in docker-compose, not here, because
-                                a Docker healthcheck execs outside the CNB launcher and so would
-                                not see launcher-provided env.
-                            -->
-                            <BP_HEALTH_CHECKER_ENABLED>true</BP_HEALTH_CHECKER_ENABLED>
                         </env>
                     </image>
                 </configuration>
@@ -367,48 +345,4 @@
             </plugin>
         </plugins>
     </build>
-
-    <profiles>
-        <!--
-            Makes `spring-boot:build-image` produce a GraalVM native container rather than a
-            JVM one, matching what `-Pnative native:compile` already does for the bare binary.
-
-            This profile has the same id as the one inherited from spring-boot-starter-parent,
-            and Maven merges the two rather than replacing, so the parent's AOT processing and
-            reachability-metadata wiring still applies. Only the two values that genuinely
-            differ are stated here:
-
-            - image.builder. The native buildpack ships in a different builder, so pointing
-              the JVM one at java-native would not resolve it. Left unset for the JVM build so
-              that the plugin's own default keeps applying, which is one less thing to get
-              wrong there.
-            - image.buildpack, which selects java-native over java.
-
-            Everything else is inherited from the base <image> block: the health-checker
-            entry, and the BPE_* loopback overrides that a container needs to be reachable at
-            all. In particular the healthcheck is not a JVM-only feature here — it is the same
-            static binary installed into either run image — so keeping it costs nothing on the
-            native path. The compose profiles and `depends_on: service_healthy` are unaffected
-            either way.
-        -->
-        <profile>
-            <id>native</id>
-            <properties>
-                <image.buildpack>urn:cnb:builder:paketo-buildpacks/java-native</image.buildpack>
-            </properties>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.springframework.boot</groupId>
-                        <artifactId>spring-boot-maven-plugin</artifactId>
-                        <configuration>
-                            <image>
-                                <builder>paketo-buildpacks/java-native</builder>
-                            </image>
-                        </configuration>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-    </profiles>
 </project>

@@ -163,5 +163,7 @@ credential (the DB and disk checks are the health details), the rest needs an OP
 `shutdown` stays off. This holds in every mode, including `header`, where the proxy boundary
 answers 401 before the role check just as it does for the API. See #72.
 
-The Docker image's container healthcheck probes this same endpoint, so the compose stack reports
-`(healthy)` when the app and its database are ready.
+The Docker image probes nothing: the run image is distroless, so there is no client in the
+container to probe with and the compose profiles carry no healthcheck. Readiness is read from
+the host instead — `curl http://127.0.0.1:8090/actuator/health` answers as soon as the app and
+its database are up. See #74.

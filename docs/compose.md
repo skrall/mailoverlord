@@ -75,12 +75,18 @@ port `127.0.0.1:8090`); the database stays on the compose network. Data lives in
 per engine, so it survives `down` and `up`; `docker compose --profile <engine> down -v` deletes
 it.
 
-Each application container carries a Docker healthcheck that probes
-`http://127.0.0.1:8090/actuator/health`, so `docker compose ps` reports `(healthy)` once the app
-and its database are up. The image is distroless — no shell, no `curl` — so the probe execs the
-Paketo [tiny-health-checker](https://github.com/dmikusa/tiny-health-checker) binary
-(`/workspace/health-check`) that the `health-checker` buildpack installs at build time (see
-`pom.xml`); its target comes from the `THC_*` variables in `docker-compose.yml`.
+The application container carries no healthcheck. The run image is distroless — no shell, no
+`curl`, no `wget` — so there is nothing inside the container to exec a probe with, and
+`docker compose ps` reports the app as running rather than `(healthy)`. The database
+containers keep their own healthchecks, so `depends_on: service_healthy` still waits for the
+database before the app starts. See #74 for why this is a deliberate choice rather than an
+oversight.
+
+If you want readiness from the host while a profile is up, poll it yourself:
+
+```bash
+until curl -fsS http://127.0.0.1:8090/actuator/health | grep -q '"status":"UP"'; do sleep 1; done
+```
 
 Schema updates only add what is missing: a volume that was created before a column type
 change keeps its old DDL. If Hibernate ever grew a column's declared size (the message body
