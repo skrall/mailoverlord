@@ -163,7 +163,7 @@ services:
   # ----------------------------------------------------------------- mariadb
   mariadb:
     profiles: [mariadb]
-    image: mariadb:11
+    image: mariadb:13
     environment:
       MARIADB_DATABASE: mailoverlord
       MARIADB_USER: mailoverlord
