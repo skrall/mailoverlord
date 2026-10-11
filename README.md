@@ -167,13 +167,17 @@ The build needs a GraalVM JDK with `native-image` available. If `JAVA_HOME` poin
 plain JDK, set `JAVA_HOME` or `GRAALVM_HOME` to the GraalVM installation first, otherwise
 the build fails with `native-image is not installed in your JAVA_HOME`.
 
-A native **container** is a separate goal, because `spring-boot:build-image` builds a JVM
-image. It needs the native builder named in `pom.xml`:
+A native **container** is a separate goal: `spring-boot:build-image` builds a JVM image, so a
+native one needs the `java-native` builder named on the command line rather than in `pom.xml`:
 
-```yaml
-# or: ./mvnw -Pnative -Dspring-boot.build-image.builder=paketobuildpacks/java-native \
-#     spring-boot:build-image
+```bash
+./mvnw -Pnative spring-boot:build-image \
+  -Dspring-boot.build-image.builder=paketobuildpacks/java-native
 ```
+
+This is not wired into the build on purpose. It is untested here — a native image needs several
+GB of RAM to link, which this machine cannot spare — so treat it as a documented starting point
+rather than a supported path.
 
 ## Web UI
 
