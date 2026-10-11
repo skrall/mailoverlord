@@ -1,6 +1,24 @@
 version: 2
 
 updates:
+  # The container images the compose profiles run: postgres, mysql, mariadb, oracle,
+  # mssql, dex and oauth2-proxy. Six of those are upstream infrastructure where a
+  # breaking major is plausible and invisible until someone runs the profile. This is a
+  # separate ecosystem from `docker` on purpose: `docker` looks for Dockerfiles and
+  # Kubernetes manifests, and this project has neither — the image is produced by
+  # spring-boot-maven-plugin through the Java buildpacks, not from a Dockerfile. Adding
+  # `docker` would only produce "no dependency files found" on every run.
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    ignore:
+      # This project's own image, built from this repository by the Maven build. The
+      # ${...:-} default is a template for whoever is running a profile, and there is no
+      # registry copy to follow.
+      - dependency-name: "mailoverlord"
+
   - package-ecosystem: maven
     directory: /
     schedule:
@@ -39,8 +57,8 @@ updates:
       - dependency-name: typescript
         versions: ["6.x", "7.x"]
       # @types/node tracks the Node major that actually runs the build. The
-      # Maven build downloads node.version from pom.xml, currently v22.14.0,
+      # Maven build downloads node.version from pom.xml, currently v24.21.0,
       # and @types/node is only used for process.env in vite.config.ts. Taking
-      # 23+ would describe a runtime the build does not use.
+      # 25+ would describe a runtime the build does not use.
       - dependency-name: "@types/node"
-        versions: ["23.x", "24.x", "25.x", "26.x"]
+        versions: ["25.x", "26.x"]
