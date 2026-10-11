@@ -167,6 +167,20 @@ The build needs a GraalVM JDK with `native-image` available. If `JAVA_HOME` poin
 plain JDK, set `JAVA_HOME` or `GRAALVM_HOME` to the GraalVM installation first, otherwise
 the build fails with `native-image is not installed in your JAVA_HOME`.
 
+A native **container** image is a separate goal, because `spring-boot:build-image` otherwise
+builds a JVM image no matter which profile is active:
+
+```bash
+./mvnw -Pnative spring-boot:build-image
+```
+
+The `native` profile in `pom.xml` selects the `java-native` buildpack and the builder that
+ships it; without it `-Pnative` only turns on AOT processing. The health-checker buildpack and
+the loopback `BPE_*` overrides are inherited from the base `<image>` block, so a native image
+still has `/workspace/health-check` and the compose healthcheck works against it. Note that
+only the container path takes a `builder`; the JVM build leaves it unset so the plugin's own
+default still applies.
+
 ## Web UI
 
 The UI is a Vue 3 and TypeScript single-page app in [`ui/`](ui), built by Vite into the
