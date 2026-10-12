@@ -1,6 +1,7 @@
 package org.mailoverlord.server.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.forwardedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -13,6 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.mailoverlord.server.AbstractMailoverlordIntegrationTest;
 
@@ -33,6 +35,26 @@ import org.mailoverlord.server.AbstractMailoverlordIntegrationTest;
 class ResourceCacheConfigTest extends AbstractMailoverlordIntegrationTest {
 
     private static final String HASHED_ASSET_CACHE_CONTROL = "max-age=31536000, public, immutable";
+
+    /**
+     * Skips the class when the UI has not been built, which is the case for any run that passes
+     * {@code -Dskip.ui=true} — the database matrix does, because the Vitest suite never touches a
+     * datasource. The tests below read {@code /static/index.html} off the classpath and request
+     * the assets that document names, so without it they fail on {@code No static resource
+     * /index.html}.
+     *
+     * <p>Guarding on the classpath rather than on a property keeps this honest: the property
+     * decides whether the UI is built, but the resource is what these tests actually need, and
+     * only one of the two is guaranteed by the caller.
+     *
+     * <p>It costs nothing to leave the Spring context loading, since every other test in the run
+     * needs the same cached one.
+     */
+    @BeforeAll
+    static void skipUnlessTheUiIsBuilt() {
+        assumeTrue(ResourceCacheConfigTest.class.getResource("/static/index.html") != null,
+                "requires the built UI on the classpath");
+    }
 
     @Test
     void entryDocumentIsNotCached() throws Exception {

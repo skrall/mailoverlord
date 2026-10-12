@@ -67,9 +67,13 @@ jobs:
               "user":"sa","password":"P@ssw0rdQ1",
               "driver":"com.microsoft.sqlserver.jdbc.SQLServerDriver","timeout":40,"retries":40,
               "health":"/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P $MSSQL_SA_PASSWORD -Q 'SELECT 1'"}]
+        # The redirect is load-bearing. Without it this only prints to the log, the job output
+        # stays empty, fromJSON yields no engines, and the run fails with nothing but a green
+        # plan job to look at. Verified the hard way: that is exactly what happened on the first
+        # run of this workflow, and the failure surfaced no error at all.
         run: |
           echo "matrix=$(jq -c --arg want "$WANTED" \
-            '[.[] | select($want == "all" or .engine == $want)]' <<< "$ENGINES")"
+            '[.[] | select($want == "all" or .engine == $want)]' <<< "$ENGINES")" >> "$GITHUB_OUTPUT"
 
   suite:
     name: ${{ matrix.engine }}
