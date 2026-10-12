@@ -127,7 +127,7 @@ class DatabaseMessageHandlerFactoryTest extends AbstractMailoverlordIntegrationT
         assertThat(messages).as("captured messages").hasSize(1);
         assertThat(messages.getFirst().getSubject())
                 .as("truncated to the column length")
-                .hasSize(4000)
+                .hasSize(2000)
                 .startsWith("sss");
     }
 }

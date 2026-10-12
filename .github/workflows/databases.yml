@@ -1,0 +1,154 @@
+name: databases
+
+# Runs the test suite against every database docker-compose.yml claims to support.
+#
+# This is deliberately not part of the build workflow. The build runs the suite against
+# H2 on every push, because H2 needs no setup and is fast enough to gate a pull request
+# on. That green tick says nothing about the other engines: a JPQL string that H2 accepts
+# can be rejected by PostgreSQL, and the suite has hand-written JPQL with dialect-specific
+# casting in it precisely because of that. So the other engines get their own job, on a
+# schedule rather than per-commit, and a failure here is information rather than a blocker.
+#
+# On workflow_dispatch the engine can be narrowed to one, which is what you want when
+# chasing a single failing engine rather than re-running everything.
+on:
+  schedule:
+    # Weekly, Monday 06:17 UTC. Deliberately not on the hour: scheduled workflows that all
+    # fire at :00 queue behind each other on the runner pool.
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      engine:
+        description: Engine to run, or all of them
+        type: choice
+        default: all
+        options: [all, postgres, mysql, mariadb, oracle, mssql]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    name: Choose engines
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.pick.outputs.matrix }}
+    steps:
+      - id: pick
+        env:
+          WANTED: ${{ github.event.inputs.engine || 'all' }}
+          ENGINES: >-
+            [{"engine":"postgres","image":"postgres:18","port":5432,
+              "url":"jdbc:postgresql://localhost:5432/mailoverlord",
+              "user":"mailoverlord","password":"mailoverlord",
+              "driver":"org.postgresql.Driver","timeout":30,"retries":30,
+              "health":"pg_isready -U mailoverlord -d mailoverlord"},
+             {"engine":"mysql","image":"mysql:26.7","port":3306,
+              "url":"jdbc:mysql://localhost:3306/mailoverlord?allowPublicKeyRetrieval=true&useSSL=false",
+              "user":"mailoverlord","password":"mailoverlord",
+              "driver":"com.mysql.cj.jdbc.Driver","timeout":30,"retries":30,
+              "health":"mysqladmin ping -h 127.0.0.1 -uroot -p$MYSQL_ROOT_PASSWORD"},
+             {"engine":"mariadb","image":"mariadb:13","port":3306,
+              "url":"jdbc:mariadb://localhost:3306/mailoverlord",
+              "user":"mailoverlord","password":"mailoverlord",
+              "driver":"org.mariadb.jdbc.Driver","timeout":30,"retries":30,
+              "health":"healthcheck.sh --connect --innodb_initialized"},
+             {"engine":"oracle","image":"gvenzl/oracle-free:23-slim","port":1521,
+              "url":"jdbc:oracle:thin:@localhost:1521/FREEPDB1",
+              "user":"mailoverlord","password":"Oracle#1234",
+              "driver":"oracle.jdbc.OracleDriver","timeout":60,"retries":90,
+              "health":"healthcheck.sh"},
+             {"engine":"mssql","image":"mcr.microsoft.com/mssql/server:2025-latest","port":1433,
+              "url":"jdbc:sqlserver://localhost:1433;databaseName=master;encrypt=false;trustServerCertificate=true",
+              "user":"sa","password":"P@ssw0rdQ1",
+              "driver":"com.microsoft.sqlserver.jdbc.SQLServerDriver","timeout":40,"retries":40,
+              "health":"/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P $MSSQL_SA_PASSWORD -Q 'SELECT 1'"}]
+        run: |
+          echo "matrix=$(jq -c --arg want "$WANTED" \
+            '[.[] | select($want == "all" or .engine == $want)]' <<< "$ENGINES")"
+
+  suite:
+    name: ${{ matrix.engine }}
+    needs: plan
+    runs-on: ubuntu-latest
+    # Oracle is the slow one: a cold container can take several minutes to open the
+    # listener before healthcheck.sh ever succeeds.
+    timeout-minutes: ${{ matrix.timeout }}
+    strategy:
+      # Every engine, not just the first failure. A dialect break tends to show up in
+      # several engines at once, and stopping at the first hides that.
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.matrix) }}
+
+    services:
+      database:
+        image: ${{ matrix.image }}
+        ports:
+          - ${{ matrix.port }}:${{ matrix.port }}
+        env:
+          POSTGRES_DB: ${{ matrix.engine == 'postgres' && 'mailoverlord' || '' }}
+          POSTGRES_USER: ${{ matrix.engine == 'postgres' && 'mailoverlord' || '' }}
+          POSTGRES_PASSWORD: ${{ matrix.engine == 'postgres' && 'mailoverlord' || '' }}
+          MYSQL_DATABASE: ${{ matrix.engine == 'mysql' && 'mailoverlord' || '' }}
+          MYSQL_USER: ${{ matrix.engine == 'mysql' && 'mailoverlord' || '' }}
+          MYSQL_PASSWORD: ${{ matrix.engine == 'mysql' && 'mailoverlord' || '' }}
+          MYSQL_ROOT_PASSWORD: ${{ matrix.engine == 'mysql' && 'mailoverlord' || '' }}
+          MARIADB_DATABASE: ${{ matrix.engine == 'mariadb' && 'mailoverlord' || '' }}
+          MARIADB_USER: ${{ matrix.engine == 'mariadb' && 'mailoverlord' || '' }}
+          MARIADB_PASSWORD: ${{ matrix.engine == 'mariadb' && 'mailoverlord' || '' }}
+          MARIADB_ROOT_PASSWORD: ${{ matrix.engine == 'mariadb' && 'mailoverlord' || '' }}
+          APP_USER: ${{ matrix.engine == 'oracle' && 'mailoverlord' || '' }}
+          APP_USER_PASSWORD: ${{ matrix.engine == 'oracle' && matrix.password || '' }}
+          ORACLE_PASSWORD: ${{ matrix.engine == 'oracle' && matrix.password || '' }}
+          ACCEPT_EULA: ${{ matrix.engine == 'mssql' && 'Y' || '' }}
+          MSSQL_PID: ${{ matrix.engine == 'mssql' && 'Developer' || '' }}
+          MSSQL_SA_PASSWORD: ${{ matrix.engine == 'mssql' && matrix.password || '' }}
+        options: >-
+          --health-cmd "${{ matrix.health }}"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries ${{ matrix.retries }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      # A warning rather than a failure, because updating docker-compose.yml and then CI is
+      # the expected order and this should not block it. It exists because that pair drifting
+      # apart is invisible: the matrix would keep passing while testing an engine the compose
+      # file no longer offers, which is exactly the state this workflow is meant to prevent.
+      - name: Check the image matches docker-compose.yml
+        run: |
+          if grep -qF "image: ${{ matrix.image }}" docker-compose.yml; then
+            echo "docker-compose.yml also uses ${{ matrix.image }}"
+          else
+            echo "::warning title=Engine drift::${{ matrix.engine }} runs ${{ matrix.image }} here, but docker-compose.yml does not list that image. Update this workflow when the compose file changes."
+          fi
+
+      # The database is the only thing that varies between these legs, so the UI is skipped:
+      # its build downloads a Node distribution and runs a Vitest suite that never touches a
+      # datasource. H2 is already covered by the build workflow on every push.
+      #
+      # -Duser.timezone is not a workaround for anything here, it is determinism. The JDBC
+      # drivers send the JVM's default zone as a startup parameter, and the slim database
+      # images do not all carry the same tzdata — a developer on an unusual zone gets
+      # `FATAL: invalid value for parameter "TimeZone"` from a container that is otherwise
+      # perfectly healthy. Pinning UTC means a failure here means a database problem.
+      - name: Run the test suite
+        env:
+          DB_URL: ${{ matrix.url }}
+          DB_USER: ${{ matrix.user }}
+          DB_PASSWORD: ${{ matrix.password }}
+          DB_DRIVER: ${{ matrix.driver }}
+        run: ./mvnw -B --batch-mode -Dskip.ui=true -Duser.timezone=UTC test

@@ -7,6 +7,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Lob;
+import org.hibernate.annotations.Nationalized;
 import java.time.Instant;
 
 import org.mailoverlord.server.model.ReleaseOutcome;
@@ -54,6 +55,7 @@ public class ReleaseAudit {
      * The remote address for now, becoming the authenticated principal once authentication
      * exists. Nullable on purpose so that path does not require a schema change; see #2.
      */
+    @Nationalized
     @Column(name = "SOURCE")
     public String getSource() {
         return source;
@@ -74,6 +76,7 @@ public class ReleaseAudit {
      * {@code TINYTEXT}, too small once a release covers many ids.
      */
     @Lob
+    @Nationalized
     @Column(name = "MESSAGE_IDS", length = Integer.MAX_VALUE)
     public String getMessageIds() {
         return messageIds;
@@ -87,6 +90,7 @@ public class ReleaseAudit {
      * The substitution recipients when the release overrode them, or {@code null} when it sent
      * to the stored recipients.
      */
+    @Nationalized
     @Column(name = "OVERRIDE_TO")
     public String getOverrideTo() {
         return overrideTo;
@@ -102,6 +106,7 @@ public class ReleaseAudit {
      * a {@code TINYTEXT} that any release to many recipients overflows.
      */
     @Lob
+    @Nationalized
     @Column(name = "DESTINATIONS", length = Integer.MAX_VALUE)
     public String getDestinations() {
         return destinations;

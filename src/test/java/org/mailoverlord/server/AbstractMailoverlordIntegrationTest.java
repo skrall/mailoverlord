@@ -16,6 +16,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Base class for the integration tests.
@@ -24,9 +25,29 @@ import org.springframework.test.web.servlet.MockMvc;
  * embedded SMTP server binds a fixed port on startup, so a second context would fail
  * to start. Because this class is the single place the annotations live, all
  * subclasses are guaranteed to resolve to the same context.
+ *
+ * <p>{@code @Transactional} is here because {@code DATA} is a {@code @Lob}, and on
+ * PostgreSQL that maps to a large object rather than to bytes stored in the row. Reading
+ * one back needs the JDBC session that opened it, so a test that loads a {@code Message}
+ * entity with the transaction already closed gets {@code Unable to access lob stream}.
+ * That is not hypothetical: every test in this hierarchy that asserted on a message body
+ * failed against PostgreSQL until this was added, and nothing caught it because the suite
+ * had only ever been run against H2, where the LOB travels inside the row and needs no
+ * session.
+ *
+ * <p>It is a test-only concern. The application reads messages through
+ * {@code MessageRepository.findSummaries}, which projects and never touches {@code DATA},
+ * and through the service methods, which are transactional in their own right. So the
+ * production paths were always fine; only the tests were reading a large object out of
+ * band.
+ *
+ * <p>A side effect worth naming: each test now rolls back rather than relying on
+ * {@link #clearMessages()} to tidy up. That cleanup is left in place and is harmless, and
+ * is still what keeps a test that fails mid-way from leaking into the next one.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
+@Transactional
 public abstract class AbstractMailoverlordIntegrationTest {
 
     @Autowired
