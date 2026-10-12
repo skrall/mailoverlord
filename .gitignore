@@ -11,3 +11,6 @@ overlord-jetty.properties
 .classpath
 .project
 .settings
+
+# Python bytecode cache, from running the scripts/ utilities
+__pycache__/

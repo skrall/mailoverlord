@@ -253,25 +253,44 @@ def build(fixture: Fixture) -> EmailMessage:
     return message
 
 
-def send(host: str, port: int, fixture: Fixture, timeout: int) -> tuple[bool, str]:
-    """Send one fixture. Returns (ok, detail) rather than raising.
+def connect(host: str, port: int, timeout: int) -> smtplib.SMTP:
+    """Open one SMTP connection for the whole run.
 
-    A seeder that dies on the first failure is a bad seeder: one rejected message should
-    not stop the rest, and the reason belongs in the summary rather than in a traceback.
+    Two things here are not about SMTP etiquette, they are about not wasting five seconds
+    per message:
+
+    - ``local_hostname`` is passed explicitly so smtplib never calls ``socket.getfqdn()``.
+      It does so in its constructor to build the EHLO name, which is a reverse DNS lookup
+      of this machine's own hostname. Where that does not resolve promptly it blocks until
+      the resolver gives up — 5.0s per message here, for 13 messages that together weigh
+      well under a megabyte. Nothing about Mailoverlord is slow; the resolver was.
+    - One connection is reused rather than dialled per fixture, which is also just correct
+      SMTP: the greeting, EHLO and QUIT round trips were being paid 13 times over.
+    """
+    return smtplib.SMTP(host, port, timeout=timeout, local_hostname="localhost")
+
+
+def send(
+    smtp: smtplib.SMTP, fixture: Fixture
+) -> tuple[bool, str]:
+    """Send one fixture over an existing connection.
+
+    Takes the connection rather than making one so a whole run costs a single handshake.
+    Returns (ok, detail) instead of raising: a seeder that dies on the first rejection is a
+    bad seeder, and the reason belongs in the summary rather than in a traceback.
     """
     message = build(fixture)
     recipients = fixture.to + fixture.cc + fixture.bcc
     try:
-        with smtplib.SMTP(host, port, timeout=timeout) as smtp:
-            smtp.send_message(message, from_addr=fixture.sender, to_addrs=list(recipients))
+        smtp.send_message(message, from_addr=fixture.sender, to_addrs=list(recipients))
     except smtplib.SMTPResponseException as error:
         # smtp_error is bytes on 3.x and str on some paths; normalise rather than guess.
         detail = error.smtp_error
         if isinstance(detail, bytes):
             detail = detail.decode(errors="replace")
         return False, f"rejected {error.smtp_code}: {detail}"
-    except OSError as error:
-        return False, f"could not reach {host}:{port} ({error})"
+    except (OSError, smtplib.SMTPException) as error:
+        return False, f"connection lost: {error}"
     return True, f"{len(recipients)} recipient(s)"
 
 
@@ -318,23 +337,37 @@ def main(argv: list[str] | None = None) -> int:
     # A fixture repeated is the easiest way to fill a page.
     failures = 0
     sent = 0
-    for round_number in range(1, args.repeat + 1):
-        for fixture in selected:
-            ok, detail = send(args.host, args.port, fixture, args.timeout)
-            if ok:
-                sent += 1
-                if not args.quiet:
-                    suffix = f" (round {round_number})" if args.repeat > 1 else ""
-                    print(f"  sent {fixture.name:<18} {detail}{suffix}")
-            else:
-                failures += 1
-                print(f"  FAILED {fixture.name:<17} {detail}", file=sys.stderr)
+
+    try:
+        smtp = connect(args.host, args.port, args.timeout)
+    except (OSError, smtplib.SMTPException) as error:
+        print(f"Could not connect to {args.host}:{args.port}: {error}", file=sys.stderr)
+        print(
+            "Is the instance up, and is the port right?\n"
+            "  docker compose ps                    # is the app running\n"
+            "  docker compose logs mailoverlord-postgres | tail",
+            file=sys.stderr,
+        )
+        return 1
+
+    with smtp:
+        for round_number in range(1, args.repeat + 1):
+            for fixture in selected:
+                ok, detail = send(smtp, fixture)
+                if ok:
+                    sent += 1
+                    if not args.quiet:
+                        suffix = f" (round {round_number})" if args.repeat > 1 else ""
+                        print(f"  sent {fixture.name:<18} {detail}{suffix}")
+                else:
+                    failures += 1
+                    print(f"  FAILED {fixture.name:<17} {detail}", file=sys.stderr)
 
     print(f"\n{sent} sent, {failures} failed, to {args.host}:{args.port}")
     if failures:
         print(
-            "Is the instance up, and is the port right?\n"
-            "  docker compose ps          # is the app running\n"
+            "Check the instance is still up:\n"
+            "  docker compose ps                    # is the app running\n"
             "  docker compose logs mailoverlord-postgres | tail",
             file=sys.stderr,
         )
