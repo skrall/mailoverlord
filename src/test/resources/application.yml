@@ -16,6 +16,17 @@ spring:
     username: ${DB_USER:sa}
     password: ${DB_PASSWORD:}
     driver-class-name: ${DB_DRIVER:org.h2.Driver}
+    hikari:
+      # Pinned so the suite behaves the same on every engine, which is the whole point of
+      # the database matrix. The default is not uniform: MySQL hands out REPEATABLE READ
+      # while PostgreSQL and H2 use READ COMMITTED, and the tests depend on the weaker one.
+      #
+      # The dependency is real. Messages reach the database asynchronously, on the SMTP
+      # handler thread, committing in its own transaction. The test then queries from a
+      # transaction that opened before that commit landed. Under REPEATABLE READ that
+      # query is served from a snapshot taken too early and returns nothing, so tests fail
+      # with "expected size 1 but was 0" against a database that is working perfectly.
+      transaction-isolation: TRANSACTION_READ_COMMITTED
 
   jpa:
     hibernate:

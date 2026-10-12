@@ -171,11 +171,11 @@ FIXTURES: tuple[Fixture, ...] = (
     ),
     Fixture(
         name="long-subject",
-        subject=("Refund request: " + "order 10482, damaged on arrival, replacement requested " * 12),
+        subject=("Refund request: " + "order 10482, damaged on arrival, replacement requested " * 40),
         sender="support@shop.example",
         to=("niaud@example.com",),
         body="Details below.",
-        note="A very long subject, near the 4000-character column it is truncated to.",
+        note="Over the 2000-character column, so the UI shows it truncated.",
     ),
     Fixture(
         name="reply-chain",
