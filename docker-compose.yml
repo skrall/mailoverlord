@@ -259,7 +259,7 @@ services:
   mssql:
     profiles: [mssql]
     # amd64 only. There is no arm64 image, so on Apple Silicon this needs emulation.
-    image: mcr.microsoft.com/mssql/server:2022-latest
+    image: mcr.microsoft.com/mssql/server:2025-latest
     environment:
       ACCEPT_EULA: "Y"
       MSSQL_PID: Developer
