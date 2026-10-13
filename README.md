@@ -207,7 +207,9 @@ Five endpoints; the UI's TypeScript types are generated from the OpenAPI documen
 * `GET /v3/api-docs` — the OpenAPI document.
 
 See [docs/api.md](docs/api.md) for the filtering rules, error shapes, the release allowlist
-and the per-id outcome semantics.
+and the per-id outcome semantics. For asserting on mail from an automated test, see
+[asserting on mail from a test](docs/api.md#asserting-on-mail-from-a-test) — it needs no new
+endpoint, only `receivedFrom` and a polling loop.
 
 ## Documentation
 
