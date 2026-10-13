@@ -113,6 +113,75 @@ case-insensitively, so `*@example.com` does not also match `user@example.com.evi
 Every resulting recipient is checked, `Cc` and `Bcc` included. Unset means unrestricted, and
 the app logs a warning at startup saying so.
 
+## Asserting on mail from a test
+
+The list endpoint is the whole mechanism; there is no wait-for-message call, and none is
+needed. Two properties of the existing API make polling safe, and both are worth knowing
+because they are what a test author would otherwise try to work around.
+
+`receivedFrom` is an inclusive ISO-8601 lower bound. Capture the current instant *before*
+triggering the action under test, then poll with that value: everything your action produced
+arrives at or after it, and mail from an earlier test run cannot leak into the result.
+
+Every ordering gets a `receivedTimestamp` tiebreaker appended, so rows cannot swap places
+between two polls. Without that, a message arriving mid-poll could move across a page
+boundary and a test could read it twice, or miss it.
+
+The pattern, then, with `Welcome to Shop` as a subject that
+[`scripts/seed-messages.py`](../scripts/seed-messages.py) actually sends:
+
+```bash
+# 1. Everything from here on is what the action under test produces.
+BEFORE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+# 2. Trigger the thing that should send mail — here, the application's own code path.
+python3 scripts/seed-messages.py
+
+# 3. Poll with a deadline. Do not loop forever: a timeout has to fail the test.
+until [ "$(curl -s -u operator:$PASSWORD \
+    "http://localhost:8080/messages/list?subject=Welcome&receivedFrom=$BEFORE" \
+    | jq '.totalElements')" -gt 0 ]; do
+  sleep 0.5
+  [ "$(date +%s)" -gt "$(( $(date +%s) + 30 ))" ] && { echo "no mail within 30s"; exit 1; }
+done
+```
+
+Then fetch the body once the message exists:
+
+```bash
+ID=$(curl -s -u operator:$PASSWORD \
+  "http://localhost:8080/messages/list?subject=Welcome&receivedFrom=$BEFORE" | jq -r '.content[0].id')
+curl -s -u operator:$PASSWORD "http://localhost:8080/messages/$ID" | jq -r '.body'
+```
+
+`totalElements` reflects the filter rather than the whole mailbox, so it is the number to
+assert on; `content` holds the matching summaries.
+
+### Authenticating
+
+The default security mode is `basic`, not `none` — the test suite sets `none`, so a packaged
+jar behaves differently from the suite and an unauthenticated request gets a 401. Pass
+credentials per request with `-u`, or set `MAILOVERLORD_PASSWORD`, whose default is
+`change-me-on-deploy`.
+
+Neither mutating endpoint demands a CSRF token, so a `curl` or test client needs no cookie
+handling at all. A browser client does, the way sessions
+[do for logout](authentication.md#browser-login-against-a-provider-oidc).
+
+### Two limits worth knowing
+
+**`sizeBytes` loads the blob.** Listing a page reads each row's LOB even though nothing else
+in a summary needs it, so a poll of a large page is not free. Polling a narrow filter is
+cheap; polling a 100-message page in a tight loop is not.
+
+**Only headers are searchable.** `subject`, `from` and `to` are columns; the message body is
+a blob and is never queried. Filtering matches a substring of a header, never the content.
+
+Two things the API cannot express yet, both visible while writing the example above. There is
+no filter on `releasedTimestamp`, so "did my release actually go out?" means fetching the
+message and checking that field rather than filtering for it. And there is no way to delete or
+release by a filter, only by explicit ids, so cleanup has to collect ids from a list first.
+
 ## Response shapes
 
 Read endpoints answer with RFC 9457 problem details on error (`spring.mvc.problemdetails.enabled`).
