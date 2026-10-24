@@ -361,7 +361,7 @@ services:
   # the published loopback port. The config is docker/dex/config.yaml.
   dex:
     profiles: [oidc, proxy]
-    image: ghcr.io/dexidp/dex:v2.46.0
+    image: ghcr.io/dexidp/dex:v2.46.1
     command: ["dex", "serve", "/etc/dex/config.yaml"]
     volumes:
       - ./docker/dex/config.yaml:/etc/dex/config.yaml:ro
