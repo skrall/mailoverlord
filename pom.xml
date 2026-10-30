@@ -52,7 +52,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <subethamail.version>7.2.2</subethamail.version>
         <!-- 3.x is the line built against Spring Boot 4; 2.x targets Spring Boot 3. -->
-        <springdoc.version>3.1.1</springdoc.version>
+        <springdoc.version>3.2.0</springdoc.version>
         <!--
             Node is downloaded by the build rather than taken from the machine, so that
             `mvn verify` produces the same UI everywhere. 26 is the current LTS line.
