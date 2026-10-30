@@ -36,28 +36,24 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    # typescript 6.x is what the build uses, but openapi-typescript still peers
+    # on ^5.x, so package.json carries an `overrides` entry that resolves the
+    # peer with "$typescript". `npm ci` therefore passes; `npm install` alone
+    # only warns about the same conflict, which is why it once looked fine
+    # locally while breaking the build. Preserve that override in any PR that
+    # touches the lockfile.
+    #
+    # Dependabot's npm updates handle overrides by re-reading package.json, so
+    # open minor/patch bumps flow normally.
     ignore:
-      # TypeScript 6 and 7 are both blocked, for different reasons.
-      #
-      # 6.x makes `npm ci` fail outright, which is what the Maven build runs:
-      #   npm error Fix the upstream dependency conflict, or retry
-      #   this command with --force or --legacy-peer-deps
-      # because openapi-typescript peers on typescript ^5.x. Note that
-      # `npm install` appears to succeed and only warns, so this looks
-      # fine locally and still breaks the build.
-      #
-      # 7.x is the Go-based native compiler and does not export the ./lib/tsc
-      # subpath that vue-tsc resolves to find the compiler, so the typecheck
-      # step cannot start at all:
+      # TypeScript 7 is blocked. It is the native compiler and does not export
+      # the ./lib/tsc subpath that vue-tsc resolves to find the compiler, so
+      # the typecheck step cannot start at all:
       #   ERR_PACKAGE_PATH_NOT_EXPORTED: Package subpath './lib/tsc' is not
       #   defined by "exports" in node_modules/typescript/package.json
-      #
-      # Revisit both once openapi-typescript widens its peer range and vue-tsc
-      # supports the native compiler. Both failures were re-verified after the
-      # 2026-10 dependency refresh: 6.0.3 breaks `npm ci` exactly as described,
-      # and 7.0.2 still does not export ./lib/tsc.
+      # Lift once vue-tsc supports the native compiler.
       - dependency-name: typescript
-        versions: ["6.x", "7.x"]
+        versions: ["7.x"]
       # @types/node tracks the Node major that actually runs the build. The
       # Maven build downloads node.version from pom.xml, currently v26.13.0,
       # and @types/node is only used for process.env in vite.config.ts. Taking
