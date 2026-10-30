@@ -53,12 +53,15 @@ updates:
       #   defined by "exports" in node_modules/typescript/package.json
       #
       # Revisit both once openapi-typescript widens its peer range and vue-tsc
-      # supports the native compiler.
+      # supports the native compiler. Both failures were re-verified after the
+      # 2026-10 dependency refresh: 6.0.3 breaks `npm ci` exactly as described,
+      # and 7.0.2 still does not export ./lib/tsc.
       - dependency-name: typescript
         versions: ["6.x", "7.x"]
       # @types/node tracks the Node major that actually runs the build. The
-      # Maven build downloads node.version from pom.xml, currently v24.21.0,
+      # Maven build downloads node.version from pom.xml, currently v26.13.0,
       # and @types/node is only used for process.env in vite.config.ts. Taking
-      # 25+ would describe a runtime the build does not use.
+      # 27+ would describe a runtime the build does not use. Bump this line
+      # in lockstep with node.version.
       - dependency-name: "@types/node"
-        versions: ["25.x", "26.x"]
+        versions: ["27.x"]
