@@ -388,7 +388,7 @@ services:
   # a container could not redeem a code against; backchannels use the service name instead.
   oauth2-proxy:
     profiles: [proxy]
-    image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.5
+    image: quay.io/oauth2-proxy/oauth2-proxy:v7.15.6
     command:
       - --provider=oidc
       - --skip-oidc-discovery=true
