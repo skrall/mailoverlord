@@ -2,6 +2,9 @@ package org.mailoverlord.server;
 
 import org.mailoverlord.server.config.ApiModelRuntimeHints;
 import org.mailoverlord.server.config.HibernateRuntimeHints;
+import org.mailoverlord.server.config.JpaEntityRuntimeHints;
+import org.mailoverlord.server.config.MailRuntimeHints;
+import org.mailoverlord.server.config.ValidationRuntimeHints;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.ImportRuntimeHints;
@@ -10,7 +13,8 @@ import org.springframework.context.annotation.ImportRuntimeHints;
  * Mailoverlord entry point.
  */
 @SpringBootApplication
-@ImportRuntimeHints({ HibernateRuntimeHints.class, ApiModelRuntimeHints.class })
+@ImportRuntimeHints({ HibernateRuntimeHints.class, ApiModelRuntimeHints.class,
+        JpaEntityRuntimeHints.class, ValidationRuntimeHints.class, MailRuntimeHints.class })
 public class MailoverlordApplication {
 
     public static void main(String[] args) {

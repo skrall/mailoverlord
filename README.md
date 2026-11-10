@@ -151,7 +151,7 @@ This needs a GraalVM JDK with `native-image` available, and yields a self-contai
 ./target/mailoverlord
 ```
 
-Two sets of runtime hints keep the image working, both registered in
+Five sets of runtime hints keep the image working, all registered in
 `MailoverlordApplication`:
 
 * `HibernateRuntimeHints` registers the `<Interface>_$logger` implementations that JBoss
@@ -162,6 +162,18 @@ Two sets of runtime hints keep the image working, both registered in
 * `ApiModelRuntimeHints` registers the API response types. They are records, so Jackson
   needs both their accessors and their constructors to be reachable. Without them the JSON
   API answers with empty objects in a native image.
+* `JpaEntityRuntimeHints` registers every `@Entity` with its declared methods, so Hibernate
+  can invoke non-public accessors. Spring Boot's AOT processing registers only the public
+  ones, and loading a message calls the deliberately private
+  `Message.setSizeBytes(long)`; without the hint, `GET /messages/{id}` fails with
+  `MissingReflectionRegistrationError`.
+* `ValidationRuntimeHints` registers the application's `ConstraintValidator`
+  implementations with their constructors. Hibernate Validator creates them reflectively,
+  and without the hint the first release request dies with `NoSuchMethodException:
+  UsableOverridesValidator.<init>()`.
+* `MailRuntimeHints` registers the SMTP transports Jakarta Mail instantiates by name when
+  sending released mail. Without it, a release fails with
+  `MissingReflectionRegistrationError` on the transport's `(Session, URLName)` constructor.
 
 The build needs a GraalVM JDK with `native-image` available. If `JAVA_HOME` points at a
 plain JDK, set `JAVA_HOME` or `GRAALVM_HOME` to the GraalVM installation first, otherwise
