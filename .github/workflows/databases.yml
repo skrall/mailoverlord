@@ -47,7 +47,7 @@ jobs:
               "user":"mailoverlord","password":"mailoverlord",
               "driver":"org.postgresql.Driver","timeout":30,"retries":30,
               "health":"pg_isready -U mailoverlord -d mailoverlord"},
-             {"engine":"mysql","image":"mysql:26.7","port":3306,
+             {"engine":"mysql","image":"mysql:26.10","port":3306,
               "url":"jdbc:mysql://localhost:3306/mailoverlord?allowPublicKeyRetrieval=true&useSSL=false",
               "user":"mailoverlord","password":"mailoverlord",
               "driver":"com.mysql.cj.jdbc.Driver","timeout":30,"retries":30,
